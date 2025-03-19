@@ -1,0 +1,27 @@
+﻿  Camera.cpp
+  d3dApp.cpp
+C:\MapTool\Common\d3dApp.cpp(203,5): error C2102: '&' requires l-value
+C:\MapTool\Common\d3dApp.cpp(220,72): error C2102: '&' requires l-value
+C:\MapTool\Common\d3dApp.cpp(551,24): error C2664: 'HANDLE CreateEventExW(LPSECURITY_ATTRIBUTES,LPCWSTR,DWORD,DWORD)': cannot convert argument 2 from 'bool' to 'LPCWSTR'
+      C:\MapTool\Common\d3dApp.cpp(551,47):
+      Conversion from integral type to pointer type requires reinterpret_cast, C-style cast or parenthesized function-style cast
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um\synchapi.h(599,1):
+      see declaration of 'CreateEventExW'
+      C:\MapTool\Common\d3dApp.cpp(551,24):
+      while trying to match the argument list '(nullptr, bool, bool, long)'
+  
+  d3dUtil.cpp
+C:\MapTool\Common\d3dUtil.cpp(48,5): error C2102: '&' requires l-value
+C:\MapTool\Common\d3dUtil.cpp(58,5): error C2102: '&' requires l-value
+C:\MapTool\Common\d3dUtil.cpp(76,67): error C2102: '&' requires l-value
+C:\MapTool\Common\d3dUtil.cpp(79,67): error C2102: '&' requires l-value
+  DDSTextureLoader.cpp
+C:\MapTool\Common\DDSTextureLoader.cpp(1273,28): error C2102: '&' requires l-value
+C:\MapTool\Common\DDSTextureLoader.cpp(1292,29): error C2102: '&' requires l-value
+C:\MapTool\Common\DDSTextureLoader.cpp(1294,35): error C2102: '&' requires l-value
+C:\MapTool\Common\DDSTextureLoader.cpp(1305,70): error C2102: '&' requires l-value
+C:\MapTool\Common\DDSTextureLoader.cpp(1311,70): error C2102: '&' requires l-value
+  GameTimer.cpp
+  GeometryGenerator.cpp
+  MathHelper.cpp
+  Generating Code...
