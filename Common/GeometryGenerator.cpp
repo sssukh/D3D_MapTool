@@ -657,3 +657,31 @@ GeometryGenerator::MeshData GeometryGenerator::CreateQuad(float x, float y, floa
     return meshData;
 }
 
+GeometryGenerator::MeshData GeometryGenerator::CreateCircle(uint32 radius)
+{
+	MeshData meshData;
+	
+	uint16_t sliceCount = 10;
+	float dTheta = 2.0f * DirectX::XM_PI / sliceCount;
+
+	for(int i=0;i<=sliceCount;++i)
+	{
+		float x = radius * cosf(i*dTheta);
+		float z = radius * sinf(i*dTheta);
+
+		meshData.Vertices.push_back(Vertex(x,0.0f,z,0.0f,1.0f,0.0f,1.0f,0.0f,0.0f,0.0f,0.0f));
+	}
+	meshData.Vertices.push_back(Vertex(0.0f,0.0f,0.0f,0.0f,1.0f,0.0f,1.0f,0.0f,0.0f,0.0f,0.0f));
+
+	uint32 centerIndex = (uint32)meshData.Vertices.size()-1;
+
+	for(int i=0;i<sliceCount;++i)
+	{
+		meshData.Indices32.push_back(centerIndex);
+		meshData.Indices32.push_back(i+1);
+		meshData.Indices32.push_back(i);
+	}
+
+	return meshData;
+}
+

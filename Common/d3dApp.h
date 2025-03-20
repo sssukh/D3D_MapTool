@@ -15,6 +15,7 @@
 #include "MathHelper.h"
 #include "GeometryGenerator.h"
 #include "FrameResource.h"
+#include "Camera.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -138,8 +139,11 @@ private:
 	void BuildMaterials();
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList,const std::vector<RenderItem*>& ritems);
-
+	
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+
+	// Update Scene by moving Camera
+	void UpdateScene(float dt);
 	
 protected:
 
@@ -241,7 +245,9 @@ private:
 	float mRadius = 12.0f;
 
 	POINT mLastMousePos;
-	
-	
+
+	Camera mCam;
+
+	const float mCameraSpeed = 50.0f;
 };
 

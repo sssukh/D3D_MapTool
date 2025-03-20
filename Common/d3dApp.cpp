@@ -123,6 +123,8 @@ bool D3DApp::Initialize()
 	// 힙타입(cbv_srv_uav)에 따른 서술자 크기를 저장
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	mCam.SetPosition(0.0f,2.0f,-15.0f);
+	
 	LoadTextures();
 	BuildRootSignature();
 	BuildDescriptorHeaps();
@@ -264,14 +266,13 @@ void D3DApp::OnResize()
     mScissorRect = { 0, 0, mClientWidth, mClientHeight };
 
 	// The window resized, so update the aspect ratio and recompute the projection matrix.
-	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
-	XMStoreFloat4x4(&mProj, P);
+	
+	mCam.SetLens(0.25f*MathHelper::Pi,AspectRatio(),1.0f,1000.0f);
 }
 
 void D3DApp::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
-	UpdateCamera(gt);
 	
 	// Cycle through the circular frame resource array.
 	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
@@ -286,7 +287,6 @@ void D3DApp::Update(const GameTimer& gt)
 		WaitForSingleObject(eventHandle, INFINITE);
 		CloseHandle(eventHandle);
 	}
-
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
 	UpdateMainPassCB(gt);
@@ -373,30 +373,15 @@ void D3DApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void D3DApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	if((btnState & MK_LBUTTON) != 0)
+	if((btnState & MK_RBUTTON) != 0)
 	{
-		// Make each pixel correspond to a quarter of a degree.
-		float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
-		float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
-
-		// Update angles based on input to orbit camera around box.
-		mTheta += dx;
-		mPhi += dy;
-
-		// Restrict the angle mPhi.
-		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}
-	else if((btnState & MK_RBUTTON) != 0)
-	{
-		// Make each pixel correspond to 0.2 unit in the scene.
-		float dx = 0.2f*static_cast<float>(x - mLastMousePos.x);
-		float dy = 0.2f*static_cast<float>(y - mLastMousePos.y);
+		// Make each pixel correspond to 0.25 angle in the scene.
+		float yawAngle = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
+		float pitchAngle = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
 		// Update the camera radius based on input.
-		mRadius += dx - dy;
-
-		// Restrict the radius.
-		mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+		mCam.Pitch(pitchAngle);
+		mCam.RotateY(yawAngle);
 	}
 
 	mLastMousePos.x = x;
@@ -850,6 +835,8 @@ void D3DApp::LogOutputDisplayModes(IDXGIOutput* output, DXGI_FORMAT format)
 
 void D3DApp::OnKeyboardInput(const GameTimer& gt)
 {
+	const float dt = gt.DeltaTime();
+	UpdateScene(dt);
 }
 
 void D3DApp::UpdateCamera(const GameTimer& gt)
@@ -920,8 +907,8 @@ void D3DApp::UpdateMaterialCBs(const GameTimer& gt)
 
 void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 {
-	XMMATRIX view = XMLoadFloat4x4(&mView);
-	XMMATRIX proj = XMLoadFloat4x4(&mProj);
+	XMMATRIX view = mCam.GetView();
+	XMMATRIX proj = mCam.GetProj();
 
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
@@ -934,11 +921,11 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	mMainPassCB.EyePosW = mEyePos;
+	mMainPassCB.EyePosW = mCam.GetPosition3f();
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
-	mMainPassCB.NearZ = 1.0f;
-	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.NearZ = mCam.GetNearZ();
+	mMainPassCB.FarZ = mCam.GetFarZ();
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
 	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
@@ -1082,8 +1069,7 @@ void D3DApp::BuildDescriptorHeaps()
 void D3DApp::BuildShadersAndInputLayout()
 {
 	mShaders["VS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "VS", "vs_5_0");
-	// mShaders["tessHS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "HS", "hs_5_0");
-	// mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "DS", "ds_5_0");
+	// mShaders["GS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"GS","gs_5_0");
 	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_0");
 	
 	mInputLayout =
@@ -1125,7 +1111,7 @@ void D3DApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 
-	// test
+	// WireFrameMode Option
 	// opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 }
@@ -1152,16 +1138,6 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 		vertices[i].TexC = plane.Vertices[i].TexC;
 	}
 	std::vector<std::uint16_t> indices = plane.GetIndices16();
-
-	// std::array<Vertex,4> vertices =
-	// {
-	// 	Vertex(-10.0f, 0.0f, +10.0f,0.0f,1.0f,0.0f,0.0f,0.0f),
-	// 	Vertex(+10.0f, 0.0f, +10.0f,0.0f,1.0f,0.0f,0.0f,0.0f),
-	// 	Vertex(-10.0f, 0.0f, -10.0f,0.0f,1.0f,0.0f,0.0f,0.0f),
-	// 	Vertex(+10.0f, 0.0f, -10.0f,0.0f,1.0f,0.0f,0.0f,0.0f)
-	// };
-	//
-	// std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
 	
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	
@@ -1258,6 +1234,9 @@ void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 	}
 }
 
+
+
+
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> D3DApp::GetStaticSamplers()
 {
 	// Applications usually only need a handful of samplers.  So just define them all up front
@@ -1313,6 +1292,20 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> D3DApp::GetStaticSamplers()
 		pointWrap, pointClamp,
 		linearWrap, linearClamp, 
 		anisotropicWrap, anisotropicClamp };
+}
+
+void D3DApp::UpdateScene(float dt)
+{
+	if(GetAsyncKeyState('W') & 0x8000)
+		mCam.Walk(mCameraSpeed * dt);
+	if(GetAsyncKeyState('S') & 0x8000)
+		mCam.Walk(-mCameraSpeed*dt);
+	if(GetAsyncKeyState('A') & 0x8000)
+		mCam.Strafe(-mCameraSpeed*dt);
+	if(GetAsyncKeyState('D') & 0x8000)
+		mCam.Strafe(mCameraSpeed*dt);
+
+	mCam.UpdateViewMatrix();
 }
 
 

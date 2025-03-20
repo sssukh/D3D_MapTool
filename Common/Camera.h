@@ -19,29 +19,56 @@ public:
 
 	Camera();
 	~Camera();
-
+	/*******************************************/
 	// Get/Set world camera position.
+	/*******************************************/
+	
+	// Get world camera position in Vector.
 	DirectX::XMVECTOR GetPosition()const;
+	// Get world camera position in Float3.
 	DirectX::XMFLOAT3 GetPosition3f()const;
+	// Set World Camera Position in x,y,z.
 	void SetPosition(float x, float y, float z);
+	// Set World Camera Position in Float3.
 	void SetPosition(const DirectX::XMFLOAT3& v);
 	
+	/*******************************************/
 	// Get camera basis vectors.
+	/*******************************************/
+	
+	// Get View Right Vector in Vector.
 	DirectX::XMVECTOR GetRight()const;
+	// Get View Right Vector in Float3.
 	DirectX::XMFLOAT3 GetRight3f()const;
+	// Get View Up Vector in Vector.
 	DirectX::XMVECTOR GetUp()const;
+	// Get View Up Vector in Float3.
 	DirectX::XMFLOAT3 GetUp3f()const;
+	// Get View Look Vector in Vector.
 	DirectX::XMVECTOR GetLook()const;
+	// Get View Look Vector in Float3.
 	DirectX::XMFLOAT3 GetLook3f()const;
 
+	/*******************************************/
 	// Get frustum properties.
+	/*******************************************/
+	
+	// Get frustum near z value.
 	float GetNearZ()const;
+	// Get frustum far z value.
 	float GetFarZ()const;
+	// Get aspect ratio value.
 	float GetAspect()const;
+	// Get Field of view Y value.
 	float GetFovY()const;
+	// Get Field of view X value.
 	float GetFovX()const;
 
+
+	/*******************************************/
 	// Get near and far plane dimensions in view space coordinates.
+	/*******************************************/
+	
 	float GetNearWindowWidth()const;
 	float GetNearWindowHeight()const;
 	float GetFarWindowWidth()const;
