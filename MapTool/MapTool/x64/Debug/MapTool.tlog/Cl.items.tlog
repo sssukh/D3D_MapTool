@@ -6,4 +6,12 @@ C:\MapTool\Common\FrameResource.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\FrameRe
 C:\MapTool\Common\GameTimer.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\GameTimer.obj
 C:\MapTool\Common\GeometryGenerator.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\GeometryGenerator.obj
 C:\MapTool\Common\MathHelper.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\MathHelper.obj
+C:\MapTool\Common\myImGui.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\myImGui.obj
+C:\MapTool\ImGui\imgui.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui.obj
+C:\MapTool\ImGui\imgui_demo.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_demo.obj
+C:\MapTool\ImGui\imgui_draw.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_draw.obj
+C:\MapTool\ImGui\imgui_impl_dx12.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_impl_dx12.obj
+C:\MapTool\ImGui\imgui_impl_win32.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_impl_win32.obj
+C:\MapTool\ImGui\imgui_tables.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_tables.obj
+C:\MapTool\ImGui\imgui_widgets.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_widgets.obj
 C:\MapTool\MapTool\MapTool\MapTool.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\MapTool.obj

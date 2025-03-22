@@ -136,7 +136,16 @@
     <ClInclude Include="..\..\Common\GameTimer.h" />
     <ClInclude Include="..\..\Common\GeometryGenerator.h" />
     <ClInclude Include="..\..\Common\MathHelper.h" />
+    <ClInclude Include="..\..\Common\myImGui.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
+    <ClInclude Include="..\..\ImGui\imconfig.h" />
+    <ClInclude Include="..\..\ImGui\imgui.h" />
+    <ClInclude Include="..\..\ImGui\imgui_impl_dx12.h" />
+    <ClInclude Include="..\..\ImGui\imgui_impl_win32.h" />
+    <ClInclude Include="..\..\ImGui\imgui_internal.h" />
+    <ClInclude Include="..\..\ImGui\imstb_rectpack.h" />
+    <ClInclude Include="..\..\ImGui\imstb_textedit.h" />
+    <ClInclude Include="..\..\ImGui\imstb_truetype.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="MapTool.h" />
     <ClInclude Include="Resource.h" />
@@ -151,6 +160,14 @@
     <ClCompile Include="..\..\Common\GameTimer.cpp" />
     <ClCompile Include="..\..\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\..\Common\MathHelper.cpp" />
+    <ClCompile Include="..\..\Common\myImGui.cpp" />
+    <ClCompile Include="..\..\ImGui\imgui.cpp" />
+    <ClCompile Include="..\..\ImGui\imgui_demo.cpp" />
+    <ClCompile Include="..\..\ImGui\imgui_draw.cpp" />
+    <ClCompile Include="..\..\ImGui\imgui_impl_dx12.cpp" />
+    <ClCompile Include="..\..\ImGui\imgui_impl_win32.cpp" />
+    <ClCompile Include="..\..\ImGui\imgui_tables.cpp" />
+    <ClCompile Include="..\..\ImGui\imgui_widgets.cpp" />
     <ClCompile Include="MapTool.cpp" />
   </ItemGroup>
   <ItemGroup>
