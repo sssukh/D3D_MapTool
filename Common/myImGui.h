@@ -1,9 +1,12 @@
 ﻿#pragma once
 
+#include <ratio>
+#include <wrl/event.h>
+
 #include "../ImGui/imgui_impl_dx12.h"
 #include "../ImGui/imgui_impl_win32.h"
 
-static const int APP_SRV_HEAP_SIZE = 64;
+static const int APP_SRV_HEAP_SIZE = 100;
 
 // Simple free list based allocator
 struct ExampleDescriptorHeapAllocator
@@ -50,20 +53,33 @@ struct ExampleDescriptorHeapAllocator
     }
 };
 
+static ExampleDescriptorHeapAllocator g_d3dSrvDescHeapAlloc;
 
 class myImGui
 {
 public:
-    myImGui();
+    myImGui(){};
+    myImGui(HWND hwnd, ID3D12Device* device, ID3D12CommandQueue* commandQueue, int frameNums, ID3D12DescriptorHeap* srvHeap);
     ~myImGui();
 
 public:
-    // bool InitImGui(HWND hwnd, ID3D12Device* device, ID3D12CommandQueue* commandQueue, int frameNums, ID3D12DescriptorHeap* srvHeap );
-    //
-    // void DrawImGui();
-    //
-    // void StepAfterDraw();
+    bool InitImGui();
+    
+    void DrawImGui();
+    
+    void Render(ID3D12GraphicsCommandList* pCommandList );
 
-protected:
-    static ExampleDescriptorHeapAllocator md3dSrvDescHeapAlloc;
+    void DrawMyWindow();
+
+    void ReleaseImGui();
+private:
+    HWND mHwnd = nullptr;
+    
+    Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice = nullptr;
+
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue = nullptr;
+
+    int mFrameNums;
+
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescHeap = nullptr;
 };

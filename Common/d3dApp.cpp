@@ -34,11 +34,7 @@ D3DApp::D3DApp(HINSTANCE hInstance)
 
 D3DApp::~D3DApp()
 {
-	// ImGui
-	ImGui_ImplDX12_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
-
+	mImGui->ReleaseImGui();
 	if(md3dDevice != nullptr)
 		FlushCommandQueue();
 }
@@ -99,16 +95,17 @@ int D3DApp::Run()
 				CalculateFrameStats();
 				Update(mTimer);
 
-				{
-					ImGui_ImplDX12_NewFrame();
-					ImGui_ImplWin32_NewFrame();
-					ImGui::NewFrame();
-					ImGui::ShowDemoWindow();
-				}
+
+				mImGui->DrawImGui();
+				// {
+				// 	ImGui_ImplDX12_NewFrame();
+				// 	ImGui_ImplWin32_NewFrame();
+				// 	ImGui::NewFrame();
+				// 	ImGui::ShowDemoWindow();
+				// }
 				
                 Draw(mTimer);
 
-				// PaintMousePosOnPlane(10,100);
 			}
 			else
 			{
@@ -116,6 +113,8 @@ int D3DApp::Run()
 			}
         }
     }
+
+	
 
 	return (int)msg.wParam;
 }
@@ -151,37 +150,9 @@ bool D3DApp::Initialize()
 	BuildFrameResources();
 	BuildPSOs();
 
-	{
-		
-		
-
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		ImGuiIO& io = ImGui::GetIO(); (void)io;
-		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-		// Setup Dear ImGui style
-		ImGui::StyleColorsDark();
-		//ImGui::StyleColorsLight();
-
-		// Setup Platform/Renderer backends
-		ImGui_ImplWin32_Init(MainWnd());
-
-		ImGui_ImplDX12_InitInfo init_info = {};
-		init_info.Device = md3dDevice.Get();
-		init_info.CommandQueue = mCommandQueue.Get();
-		init_info.NumFramesInFlight = 3;
-		init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-		init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
-		// Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
-		// (current version of the backend will only allocate one descriptor, future versions will need to allocate more)
-		init_info.SrvDescriptorHeap = mImGuiSrvDescriptorHeap.Get();
-		init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle) { return gImGuiSrvDescHeapAlloc.Alloc(out_cpu_handle, out_gpu_handle); };
-		init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle)            { return gImGuiSrvDescHeapAlloc.Free(cpu_handle, gpu_handle); };
-		ImGui_ImplDX12_Init(&init_info);
-		
-	}
+	// Init ImGui
+	InitImGui();
+	
 	
 	// Execute the initialization commands.
 	ThrowIfFailed(mCommandList->Close());
@@ -382,11 +353,13 @@ void D3DApp::Draw(const GameTimer& gt)
 	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::Opaque]);
 	// extra end
 
+
+	mImGui->Render(mCommandList.Get());
 	// ImGui Test
 	{
-		ImGui::Render();
+		// ImGui::Render();
 		
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+		// ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
 	}
 	
     // Indicate a state transition on the resource usage.
@@ -1133,7 +1106,7 @@ void D3DApp::BuildDescriptorHeaps()
 	imGuiSrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&imGuiSrvHeapDesc, IID_PPV_ARGS(&mImGuiSrvDescriptorHeap)));
 
-	gImGuiSrvDescHeapAlloc.Create(md3dDevice.Get(),mImGuiSrvDescriptorHeap.Get());
+	g_d3dSrvDescHeapAlloc.Create(md3dDevice.Get(),mImGuiSrvDescriptorHeap.Get());
 }
 
 void D3DApp::BuildShadersAndInputLayout()
@@ -1380,7 +1353,11 @@ void D3DApp::UpdateScene(float dt)
 
 void D3DApp::InitImGui()
 {
-	
+	myImGui* tmpImGui = new myImGui(MainWnd(),md3dDevice.Get(),mCommandQueue.Get(),gNumFrameResources,mImGuiSrvDescriptorHeap.Get());
+
+	mImGui = tmpImGui;
+
+	mImGui->InitImGui();
 }
 
 
