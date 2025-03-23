@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <DirectXMath.h>
 #include <ratio>
 #include <wrl/event.h>
 
@@ -69,9 +70,12 @@ public:
     
     void Render(ID3D12GraphicsCommandList* pCommandList );
 
-    void DrawMyWindow();
 
     void ReleaseImGui();
+
+    void DrawMyWindow(DirectX::XMFLOAT3 pValue);
+
+    
 private:
     HWND mHwnd = nullptr;
     

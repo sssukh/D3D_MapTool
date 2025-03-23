@@ -68,6 +68,8 @@ cbuffer cbPass : register(b1)
     // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
     // are spot lights for a maximum of MaxLights per object.
     Light gLights[MaxLights];
+
+	float3 gMousePosOnPlane;
 };
 
 cbuffer cbMaterial : register(b2)
@@ -142,6 +144,10 @@ float4 PS(VertexOut pin) : SV_Target
         pin.NormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
+	
+	// temporary code for check
+	if(length(pin.PosW - gMousePosOnPlane)<5)
+		litColor.r = 255.0f;
 
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;

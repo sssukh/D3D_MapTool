@@ -70,6 +70,8 @@ struct RenderItem
 	
 };
 
+class myRay;
+
 class D3DApp
 {
 public:
@@ -127,7 +129,6 @@ protected:
 
 private:
 	void OnKeyboardInput(const GameTimer& gt);
-	void UpdateCamera(const GameTimer& gt);
 	
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialCBs(const GameTimer& gt);
@@ -150,7 +151,7 @@ private:
 	void UpdateScene(float dt);
 
 	void InitImGui();
-	
+
 protected:
 
     static D3DApp* mApp;
@@ -242,13 +243,9 @@ private:
 
 	XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };
 
-	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
-	XMFLOAT4X4 mView = MathHelper::Identity4x4();
-	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
-
-	float mTheta = 1.24f*XM_PI;
-	float mPhi = 0.42f*XM_PI;
-	float mRadius = 12.0f;
+	// float mTheta = 1.24f*XM_PI;
+	// float mPhi = 0.42f*XM_PI;
+	// float mRadius = 12.0f;
 
 	POINT mLastMousePos;
 
@@ -261,5 +258,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> mImGuiSrvDescriptorHeap = nullptr;
 
 	myImGui* mImGui = nullptr;
+
+	myRay* mMouseRay = nullptr;
 };
 

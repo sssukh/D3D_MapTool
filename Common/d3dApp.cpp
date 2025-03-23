@@ -3,6 +3,7 @@
 #include "d3dApp.h"
 #include <WindowsX.h>
 #include "pix3.h"
+#include "myRay.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace std;
@@ -92,17 +93,14 @@ int D3DApp::Run()
 
 			if( !mAppPaused )
 			{
+				mImGui->DrawImGui();
+				
 				CalculateFrameStats();
 				Update(mTimer);
 
-
-				mImGui->DrawImGui();
-				// {
-				// 	ImGui_ImplDX12_NewFrame();
-				// 	ImGui_ImplWin32_NewFrame();
-				// 	ImGui::NewFrame();
-				// 	ImGui::ShowDemoWindow();
-				// }
+				// temporary
+				mImGui->DrawMyWindow(mMousePosOnPlane);
+				
 				
                 Draw(mTimer);
 
@@ -128,6 +126,9 @@ bool D3DApp::Initialize()
 	if(!InitDirect3D())
 		return false;
 
+	// mouse ray 
+	mMouseRay = new myRay();
+	
     // Do the initial resize code.
     OnResize();
 
@@ -152,6 +153,8 @@ bool D3DApp::Initialize()
 
 	// Init ImGui
 	InitImGui();
+
+
 	
 	
 	// Execute the initialization commands.
@@ -287,11 +290,15 @@ void D3DApp::OnResize()
 	// The window resized, so update the aspect ratio and recompute the projection matrix.
 	
 	mCam.SetLens(0.25f*MathHelper::Pi,AspectRatio(),1.0f,1000.0f);
+
+	mMouseRay->SetViewport(mScreenViewport);
 }
 
 void D3DApp::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
+
+	
 	
 	// Cycle through the circular frame resource array.
 	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
@@ -418,7 +425,7 @@ void D3DApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	// 추가한거 
+	// ImGui
 	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 	if (ImGui_ImplWin32_WndProcHandler(MainWnd(), msg, wParam, lParam))
 		return true;
@@ -781,9 +788,13 @@ void D3DApp::CalculateFrameStats()
         wstring fpsStr = to_wstring(fps);
         wstring mspfStr = to_wstring(mspf);
 
+		wstring mouseXPos = to_wstring(mLastMousePos.x);
+		wstring mouseYPos = to_wstring(mLastMousePos.y);
+		
+		
         wstring windowText = mMainWndCaption +
             L"    fps: " + fpsStr +
-            L"   mspf: " + mspfStr;
+            L"   mspf: " + mspfStr + L"   x : " + mouseXPos + L"   y : " + mouseYPos;
 
         SetWindowText(mhMainWnd, windowText.c_str());
 		
@@ -874,21 +885,7 @@ void D3DApp::OnKeyboardInput(const GameTimer& gt)
 	UpdateScene(dt);
 }
 
-void D3DApp::UpdateCamera(const GameTimer& gt)
-{
-	// Convert Spherical to Cartesian coordinates.
-	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
-	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
-	mEyePos.y = mRadius*cosf(mPhi);
 
-	// Build the view matrix.
-	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
-	XMVECTOR target = XMVectorZero();
-	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-	XMStoreFloat4x4(&mView, view);
-}
 
 void D3DApp::UpdateObjectCBs(const GameTimer& gt)
 {
@@ -971,6 +968,21 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
 	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
+
+	mMouseRay->SetMatrix(view,proj);
+	// If mouse has moved, update ray information
+	if(mLastMousePos.x != mMouseRay->GetStartPos().x || mLastMousePos.y != mMouseRay->GetStartPos().y)
+	{
+		mMouseRay->SetStartPos(mLastMousePos);
+
+		mMouseRay->UpdateRay();
+
+		XMVECTOR point = XMVectorZero();
+		XMVECTOR normal = XMLoadFloat3(&XMFLOAT3(0.0f,1.0f,0.0f));
+
+		XMStoreFloat3(&mMousePosOnPlane,mMouseRay->PlaneLineIntersectVect(point,normal));
+	}
+	mMainPassCB.MouseProjPos = mMousePosOnPlane;
 	// Main pass stored in index 2
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -1359,6 +1371,10 @@ void D3DApp::InitImGui()
 
 	mImGui->InitImGui();
 }
+
+
+
+
 
 
 
