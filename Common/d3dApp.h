@@ -250,11 +250,13 @@ private:
 	POINT mLastMousePos;
 
 	Camera mCam;
-
+	
 	const float mCameraSpeed = 50.0f;
 
+	// Vector3 for Mouse Position raytraced on plane
 	XMFLOAT3 mMousePosOnPlane = {0.0f,0.0f,0.0f};
 
+	// Srv Descriptor Heap for ImGui textures
 	ComPtr<ID3D12DescriptorHeap> mImGuiSrvDescriptorHeap = nullptr;
 
 	myImGui* mImGui = nullptr;

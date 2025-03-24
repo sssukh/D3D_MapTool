@@ -60,28 +60,35 @@ bool myImGui::InitImGui()
 
 void myImGui::DrawImGui()
 {
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
-    ImGui::ShowDemoWindow();
-    
+    if(isDebug)
+    {
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+        ImGui::ShowDemoWindow();
+    }
 }
 
 void myImGui::Render(ID3D12GraphicsCommandList* pCommandList)
 {
-    ImGui::Render();
+    if(isDebug)
+    {
+        ImGui::Render();
 		
-    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCommandList);
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCommandList);
+    }
 }
 
 void myImGui::DrawMyWindow(DirectX::XMFLOAT3 pValue)
 {
-    ImGui::Begin("Mouse Pos On Plane");
+    if(isDebug)
+    {
+        ImGui::Begin("Mouse Pos On Plane");
 
-    ImGui::Text("x : %f    z : %f",pValue.x,pValue.z);
+        ImGui::Text("x : %f    z : %f",pValue.x,pValue.z);
     
-    ImGui::End();
-    
+        ImGui::End();
+    }
 }
 
 void myImGui::ReleaseImGui()

@@ -86,4 +86,6 @@ private:
     int mFrameNums;
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescHeap = nullptr;
+
+    bool isDebug = true;
 };
