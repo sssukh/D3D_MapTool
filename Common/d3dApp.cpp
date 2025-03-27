@@ -992,31 +992,31 @@ void D3DApp::LoadTextures()
 		mCommandList.Get(), bricksTex->Filename.c_str(),
 		bricksTex->Resource, bricksTex->UploadHeap));
 
-	auto checkboardTex = std::make_unique<Texture>();
-	checkboardTex->Name = "checkboardTex";
-	checkboardTex->Filename = L"../../Textures/checkboard.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), checkboardTex->Filename.c_str(),
-		checkboardTex->Resource, checkboardTex->UploadHeap));
-
-	auto iceTex = std::make_unique<Texture>();
-	iceTex->Name = "iceTex";
-	iceTex->Filename = L"../../Textures/ice.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), iceTex->Filename.c_str(),
-		iceTex->Resource, iceTex->UploadHeap));
-
-	auto white1x1Tex = std::make_unique<Texture>();
-	white1x1Tex->Name = "white1x1Tex";
-	white1x1Tex->Filename = L"../../Textures/white1x1.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), white1x1Tex->Filename.c_str(),
-		white1x1Tex->Resource, white1x1Tex->UploadHeap));
+	// auto checkboardTex = std::make_unique<Texture>();
+	// checkboardTex->Name = "checkboardTex";
+	// checkboardTex->Filename = L"../../Textures/checkboard.dds";
+	// ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+	// 	mCommandList.Get(), checkboardTex->Filename.c_str(),
+	// 	checkboardTex->Resource, checkboardTex->UploadHeap));
+	//
+	// auto iceTex = std::make_unique<Texture>();
+	// iceTex->Name = "iceTex";
+	// iceTex->Filename = L"../../Textures/ice.dds";
+	// ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+	// 	mCommandList.Get(), iceTex->Filename.c_str(),
+	// 	iceTex->Resource, iceTex->UploadHeap));
+	//
+	// auto white1x1Tex = std::make_unique<Texture>();
+	// white1x1Tex->Name = "white1x1Tex";
+	// white1x1Tex->Filename = L"../../Textures/white1x1.dds";
+	// ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+	// 	mCommandList.Get(), white1x1Tex->Filename.c_str(),
+	// 	white1x1Tex->Resource, white1x1Tex->UploadHeap));
 
 	mTextures[bricksTex->Name] = std::move(bricksTex);
-	mTextures[checkboardTex->Name] = std::move(checkboardTex);
-	mTextures[iceTex->Name] = std::move(iceTex);
-	mTextures[white1x1Tex->Name] = std::move(white1x1Tex);
+	// mTextures[checkboardTex->Name] = std::move(checkboardTex);
+	// mTextures[iceTex->Name] = std::move(iceTex);
+	// mTextures[white1x1Tex->Name] = std::move(white1x1Tex);
 }
 
 void D3DApp::BuildRootSignature()
@@ -1065,7 +1065,7 @@ void D3DApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 4;
+	srvHeapDesc.NumDescriptors = 1;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -1076,9 +1076,9 @@ void D3DApp::BuildDescriptorHeaps()
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	auto bricksTex = mTextures["bricksTex"]->Resource;
-	auto checkboardTex = mTextures["checkboardTex"]->Resource;
-	auto iceTex = mTextures["iceTex"]->Resource;
-	auto white1x1Tex = mTextures["white1x1Tex"]->Resource;
+	// auto checkboardTex = mTextures["checkboardTex"]->Resource;
+	// auto iceTex = mTextures["iceTex"]->Resource;
+	// auto white1x1Tex = mTextures["white1x1Tex"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -1089,29 +1089,29 @@ void D3DApp::BuildDescriptorHeaps()
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = checkboardTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = checkboardTex->GetDesc().MipLevels;
-
-	md3dDevice->CreateShaderResourceView(checkboardTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = iceTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = iceTex->GetDesc().MipLevels;
-
-	md3dDevice->CreateShaderResourceView(iceTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-	srvDesc.Format = white1x1Tex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = white1x1Tex->GetDesc().MipLevels;
-
-	md3dDevice->CreateShaderResourceView(white1x1Tex.Get(), &srvDesc, hDescriptor);
+	// // next descriptor
+	// hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	//
+	// srvDesc.Format = checkboardTex->GetDesc().Format;
+	// srvDesc.Texture2D.MipLevels = checkboardTex->GetDesc().MipLevels;
+	//
+	// md3dDevice->CreateShaderResourceView(checkboardTex.Get(), &srvDesc, hDescriptor);
+	//
+	// // next descriptor
+	// hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	//
+	// srvDesc.Format = iceTex->GetDesc().Format;
+	// srvDesc.Texture2D.MipLevels = iceTex->GetDesc().MipLevels;
+	//
+	// md3dDevice->CreateShaderResourceView(iceTex.Get(), &srvDesc, hDescriptor);
+	//
+	// // next descriptor
+	// hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+	//
+	// srvDesc.Format = white1x1Tex->GetDesc().Format;
+	// srvDesc.Texture2D.MipLevels = white1x1Tex->GetDesc().MipLevels;
+	//
+	// md3dDevice->CreateShaderResourceView(white1x1Tex.Get(), &srvDesc, hDescriptor);
 
 	// For ImGui
 	D3D12_DESCRIPTOR_HEAP_DESC imGuiSrvHeapDesc = {};
@@ -1235,7 +1235,7 @@ void D3DApp::BuildMaterials()
 	auto whiteMat = std::make_unique<Material>();
 	whiteMat->Name = "whiteMat";
 	whiteMat->MatCBIndex = 0;
-	whiteMat->DiffuseSrvHeapIndex = 3;
+	whiteMat->DiffuseSrvHeapIndex = 0;
 	whiteMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	whiteMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	whiteMat->Roughness = 0.5f;
