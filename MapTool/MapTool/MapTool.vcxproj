@@ -70,6 +70,10 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)\..\Include</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(SolutionDir)\..\Lib</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -108,6 +112,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -138,6 +143,7 @@
     <ClInclude Include="..\..\Common\MathHelper.h" />
     <ClInclude Include="..\..\Common\myImGui.h" />
     <ClInclude Include="..\..\Common\myRay.h" />
+    <ClInclude Include="..\..\Common\myTexture.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
     <ClInclude Include="..\..\ImGui\imconfig.h" />
     <ClInclude Include="..\..\ImGui\imgui.h" />
@@ -147,6 +153,8 @@
     <ClInclude Include="..\..\ImGui\imstb_rectpack.h" />
     <ClInclude Include="..\..\ImGui\imstb_textedit.h" />
     <ClInclude Include="..\..\ImGui\imstb_truetype.h" />
+    <ClInclude Include="..\..\Include\DirectXTex.h" />
+    <ClInclude Include="..\..\Include\DirectXTex.inl" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="MapTool.h" />
     <ClInclude Include="Resource.h" />
@@ -237,6 +245,7 @@
       <LinkCompiled>true</LinkCompiled>
       <AdditionalIncludeDirectories>C:\MapTool\MapTool\packages\WinPixEventRuntime.1.0.240308001\build\..\Include\WinPixEventRuntime;</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="..\..\Common\myTexture.cpp" />
     <ClCompile Include="..\..\ImGui\imgui.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_demo.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_draw.cpp" />
@@ -255,6 +264,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\Lib\DirectXTex.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

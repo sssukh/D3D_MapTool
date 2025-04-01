@@ -1,27 +1,3 @@
-﻿  Camera.cpp
-  d3dApp.cpp
-C:\MapTool\Common\d3dApp.cpp(203,5): error C2102: '&' requires l-value
-C:\MapTool\Common\d3dApp.cpp(220,72): error C2102: '&' requires l-value
-C:\MapTool\Common\d3dApp.cpp(551,24): error C2664: 'HANDLE CreateEventExW(LPSECURITY_ATTRIBUTES,LPCWSTR,DWORD,DWORD)': cannot convert argument 2 from 'bool' to 'LPCWSTR'
-      C:\MapTool\Common\d3dApp.cpp(551,47):
-      Conversion from integral type to pointer type requires reinterpret_cast, C-style cast or parenthesized function-style cast
-      C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um\synchapi.h(599,1):
-      see declaration of 'CreateEventExW'
-      C:\MapTool\Common\d3dApp.cpp(551,24):
-      while trying to match the argument list '(nullptr, bool, bool, long)'
-  
-  d3dUtil.cpp
-C:\MapTool\Common\d3dUtil.cpp(48,5): error C2102: '&' requires l-value
-C:\MapTool\Common\d3dUtil.cpp(58,5): error C2102: '&' requires l-value
-C:\MapTool\Common\d3dUtil.cpp(76,67): error C2102: '&' requires l-value
-C:\MapTool\Common\d3dUtil.cpp(79,67): error C2102: '&' requires l-value
-  DDSTextureLoader.cpp
-C:\MapTool\Common\DDSTextureLoader.cpp(1273,28): error C2102: '&' requires l-value
-C:\MapTool\Common\DDSTextureLoader.cpp(1292,29): error C2102: '&' requires l-value
-C:\MapTool\Common\DDSTextureLoader.cpp(1294,35): error C2102: '&' requires l-value
-C:\MapTool\Common\DDSTextureLoader.cpp(1305,70): error C2102: '&' requires l-value
-C:\MapTool\Common\DDSTextureLoader.cpp(1311,70): error C2102: '&' requires l-value
-  GameTimer.cpp
-  GeometryGenerator.cpp
-  MathHelper.cpp
-  Generating Code...
+﻿myTexture.obj : error LNK2019: unresolved external symbol "long __cdecl DirectX::CreateTexture(struct ID3D12Device *,struct DirectX::TexMetadata const &,struct ID3D12Resource * *)" (?CreateTexture@DirectX@@YAJPEAUID3D12Device@@AEBUTexMetadata@1@PEAPEAUID3D12Resource@@@Z) referenced in function "public: long __cdecl myTexture::CreateTextureFromFile(class std::basic_string<wchar_t,struct std::char_traits<wchar_t>,class std::allocator<wchar_t> > const &)" (?CreateTextureFromFile@myTexture@@QEAAJAEBV?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@@Z)
+myTexture.obj : error LNK2019: unresolved external symbol "long __cdecl DirectX::PrepareUpload(struct ID3D12Device *,struct DirectX::Image const *,unsigned __int64,struct DirectX::TexMetadata const &,class std::vector<struct D3D12_SUBRESOURCE_DATA,class std::allocator<struct D3D12_SUBRESOURCE_DATA> > &)" (?PrepareUpload@DirectX@@YAJPEAUID3D12Device@@PEBUImage@1@_KAEBUTexMetadata@1@AEAV?$vector@UD3D12_SUBRESOURCE_DATA@@V?$allocator@UD3D12_SUBRESOURCE_DATA@@@std@@@std@@@Z) referenced in function "public: long __cdecl myTexture::CreateTextureFromFile(class std::basic_string<wchar_t,struct std::char_traits<wchar_t>,class std::allocator<wchar_t> > const &)" (?CreateTextureFromFile@myTexture@@QEAAJAEBV?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@@Z)
+C:\MapTool\MapTool\x64\Debug\MapTool.exe : fatal error LNK1120: 2 unresolved externals

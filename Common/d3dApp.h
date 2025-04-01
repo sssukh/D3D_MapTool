@@ -20,6 +20,7 @@
 
 
 #include "myImGui.h"
+#include "myTexture.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -218,10 +219,14 @@ private:
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
-
+	// Use this count instead of indivisual input
+	INT mSrvDescriptorHeapObjCount=0;
+	
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+	std::unordered_map<std::string, std::unique_ptr<myTexture>> myTextures;
+
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 

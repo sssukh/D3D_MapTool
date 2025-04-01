@@ -267,6 +267,7 @@ struct Material
 	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 };
 
+// 클래스화 필요
 struct Texture
 {
 	// Unique material name for lookup.

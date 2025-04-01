@@ -992,6 +992,12 @@ void D3DApp::LoadTextures()
 		mCommandList.Get(), bricksTex->Filename.c_str(),
 		bricksTex->Resource, bricksTex->UploadHeap));
 
+	auto myiceTex = std::make_unique<myTexture>("iceTex",L"../../Textures/ice.dds");
+	myiceTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+	
+	myTextures[myiceTex->Name] = std::move(myiceTex);
+
+	
 	// auto checkboardTex = std::make_unique<Texture>();
 	// checkboardTex->Name = "checkboardTex";
 	// checkboardTex->Filename = L"../../Textures/checkboard.dds";
@@ -1065,7 +1071,7 @@ void D3DApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 1;
+	srvHeapDesc.NumDescriptors = 20;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -1089,6 +1095,7 @@ void D3DApp::BuildDescriptorHeaps()
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
 
+	myTextures["iceTex"]->CreateShaderResourceView(md3dDevice.Get(),mSrvDescriptorHeap.Get(),1,mCbvSrvDescriptorSize);
 	// // next descriptor
 	// hDescriptor.Offset(1, mCbvSrvDescriptorSize);
 	//
@@ -1235,7 +1242,7 @@ void D3DApp::BuildMaterials()
 	auto whiteMat = std::make_unique<Material>();
 	whiteMat->Name = "whiteMat";
 	whiteMat->MatCBIndex = 0;
-	whiteMat->DiffuseSrvHeapIndex = 0;
+	whiteMat->DiffuseSrvHeapIndex = 1;
 	whiteMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	whiteMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	whiteMat->Roughness = 0.5f;
