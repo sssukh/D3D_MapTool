@@ -153,6 +153,7 @@ private:
 
 	void InitImGui();
 
+	void CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT& pOffset, UINT pDescriptorSize);
 protected:
 
     static D3DApp* mApp;
@@ -214,7 +215,7 @@ private:
 	FrameResource* mCurrFrameResource = nullptr;
 	int mCurrFrameResourceIndex = 0;
 
-	UINT mCbvSrvDescriptorSize = 0;
+	// UINT mCbvSrvDescriptorSize = 0;
 
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
@@ -224,7 +225,7 @@ private:
 	
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
-	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+	// std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 	std::unordered_map<std::string, std::unique_ptr<myTexture>> myTextures;
 
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
@@ -267,5 +268,7 @@ private:
 	myImGui* mImGui = nullptr;
 
 	myRay* mMouseRay = nullptr;
+
+	UINT mTextureIndex=1;
 };
 

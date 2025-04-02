@@ -79,7 +79,7 @@ void myImGui::Render(ID3D12GraphicsCommandList* pCommandList)
     }
 }
 
-void myImGui::DrawMyWindow(DirectX::XMFLOAT3 pValue)
+void myImGui::DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue)
 {
     if(isDebug)
     {
@@ -89,6 +89,28 @@ void myImGui::DrawMyWindow(DirectX::XMFLOAT3 pValue)
     
         ImGui::End();
     }
+}
+
+void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex)
+{
+    ImGui::Begin("Plane Texture List");
+    ImGui::Text("Click the button and change the plane texture");
+    if(ImGui::Button("Texture0"))
+        pTexIndex=0;
+    ImGui::SameLine();
+    
+    if(ImGui::Button("Texture1"))
+        pTexIndex=1;
+    ImGui::SameLine();
+
+    if(ImGui::Button("Texture2"))
+        pTexIndex=2;
+    ImGui::SameLine();
+    
+    if(ImGui::Button("Texture3"))
+        pTexIndex=3;
+    
+    ImGui::End();
 }
 
 void myImGui::ReleaseImGui()

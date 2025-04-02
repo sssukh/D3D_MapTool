@@ -73,8 +73,11 @@ public:
 
     void ReleaseImGui();
 
-    void DrawMyWindow(DirectX::XMFLOAT3 pValue);
+    // Window for check mouse plane position
+    void DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue);
 
+    // Window for Plane Texture Change
+    void DrawPlaneTextureListWindow(UINT& pTexIndex);
     
 private:
     HWND mHwnd = nullptr;
@@ -83,7 +86,7 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue = nullptr;
 
-    int mFrameNums;
+    int mFrameNums=3;
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescHeap = nullptr;
 

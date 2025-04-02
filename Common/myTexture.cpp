@@ -55,8 +55,11 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
                     Resource.Get(), UploadHeap.Get(),
                     0, 0, static_cast<unsigned int>(subresources.size()),
                     subresources.data());
+        
+        return result;
     }
 
+    MessageBoxA(nullptr,"Can't create texture from file","DirectXError",MB_OK | MB_ICONERROR);
     return result;
 }
 

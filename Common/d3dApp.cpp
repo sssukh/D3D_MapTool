@@ -99,8 +99,9 @@ int D3DApp::Run()
 				Update(mTimer);
 
 				// temporary
-				mImGui->DrawMyWindow(mMousePosOnPlane);
+				mImGui->DrawMousePlanePosWindow(mMousePosOnPlane);
 				
+				mImGui->DrawPlaneTextureListWindow(mTextureIndex);
 				
                 Draw(mTimer);
 
@@ -356,8 +357,12 @@ void D3DApp::Draw(const GameTimer& gt)
 	// UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
 	auto passCB = mCurrFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(2,passCB->GetGPUVirtualAddress());
+	mCommandList->SetGraphicsRootConstantBufferView(1,passCB->GetGPUVirtualAddress());
 
+	CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	mCommandList->SetGraphicsRootDescriptorTable(3, tex);
+
+	
 	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::Opaque]);
 	// extra end
 
@@ -536,6 +541,7 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_LBUTTONDOWN:
+		
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
@@ -965,6 +971,9 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
 	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
+	// Update current texture index
+	mMainPassCB.TextureIndex = mTextureIndex;
+	
 	// Update ray information
 
 	mMouseRay->SetMatrix(view,proj);
@@ -985,59 +994,46 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 
 void D3DApp::LoadTextures()
 {
-	auto bricksTex = std::make_unique<Texture>();
-	bricksTex->Name = "bricksTex";
-	bricksTex->Filename = L"../../Textures/bricks.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), bricksTex->Filename.c_str(),
-		bricksTex->Resource, bricksTex->UploadHeap));
-
 	auto myiceTex = std::make_unique<myTexture>("iceTex",L"../../Textures/ice.dds");
 	myiceTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 	
 	myTextures[myiceTex->Name] = std::move(myiceTex);
 
-	
-	// auto checkboardTex = std::make_unique<Texture>();
-	// checkboardTex->Name = "checkboardTex";
-	// checkboardTex->Filename = L"../../Textures/checkboard.dds";
-	// ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-	// 	mCommandList.Get(), checkboardTex->Filename.c_str(),
-	// 	checkboardTex->Resource, checkboardTex->UploadHeap));
-	//
-	// auto iceTex = std::make_unique<Texture>();
-	// iceTex->Name = "iceTex";
-	// iceTex->Filename = L"../../Textures/ice.dds";
-	// ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-	// 	mCommandList.Get(), iceTex->Filename.c_str(),
-	// 	iceTex->Resource, iceTex->UploadHeap));
-	//
-	// auto white1x1Tex = std::make_unique<Texture>();
-	// white1x1Tex->Name = "white1x1Tex";
-	// white1x1Tex->Filename = L"../../Textures/white1x1.dds";
-	// ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-	// 	mCommandList.Get(), white1x1Tex->Filename.c_str(),
-	// 	white1x1Tex->Resource, white1x1Tex->UploadHeap));
+	auto mybricksTex = std::make_unique<myTexture>("bricksTex",L"../../Textures/bricks.dds");
+	mybricksTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 
-	mTextures[bricksTex->Name] = std::move(bricksTex);
-	// mTextures[checkboardTex->Name] = std::move(checkboardTex);
-	// mTextures[iceTex->Name] = std::move(iceTex);
-	// mTextures[white1x1Tex->Name] = std::move(white1x1Tex);
+	myTextures[mybricksTex->Name] = std::move(mybricksTex);
+
+	auto mycheckboardTex = std::make_unique<myTexture>("checkboardTex",L"../../Textures/checkboard.dds");
+	mycheckboardTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+
+	myTextures[mycheckboardTex->Name] = std::move(mycheckboardTex);
+
+	auto mywhiteTex = std::make_unique<myTexture>("whiteTex",L"../../Textures/white1x1.dds");
+	mywhiteTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+
+	myTextures[mywhiteTex->Name] = std::move(mywhiteTex);
+
+	auto myGrayScaleTex = std::make_unique<myTexture>("scaleTex",L"../../Textures/gray.bmp");
+	myGrayScaleTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+
+	myTextures[myGrayScaleTex->Name] = std::move(myGrayScaleTex);
 }
 
 void D3DApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
 
 	// Root parameter can be a table, root descriptor or root constants.
 	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 
 	// Perfomance TIP: Order from most frequent to least frequent.
-	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[1].InitAsConstantBufferView(0);
-	slotRootParameter[2].InitAsConstantBufferView(1);
-	slotRootParameter[3].InitAsConstantBufferView(2);
+	slotRootParameter[0].InitAsConstantBufferView(0);
+	slotRootParameter[1].InitAsConstantBufferView(1);
+	slotRootParameter[2].InitAsConstantBufferView(2);
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+
 
 	auto staticSamplers = GetStaticSamplers();
 
@@ -1081,44 +1077,19 @@ void D3DApp::BuildDescriptorHeaps()
 	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	auto bricksTex = mTextures["bricksTex"]->Resource;
-	// auto checkboardTex = mTextures["checkboardTex"]->Resource;
-	// auto iceTex = mTextures["iceTex"]->Resource;
-	// auto white1x1Tex = mTextures["white1x1Tex"]->Resource;
+	
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = bricksTex->GetDesc().Format;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = bricksTex->GetDesc().MipLevels;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
+	CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 
-	myTextures["iceTex"]->CreateShaderResourceView(md3dDevice.Get(),mSrvDescriptorHeap.Get(),1,mCbvSrvDescriptorSize);
-	// // next descriptor
-	// hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-	//
-	// srvDesc.Format = checkboardTex->GetDesc().Format;
-	// srvDesc.Texture2D.MipLevels = checkboardTex->GetDesc().MipLevels;
-	//
-	// md3dDevice->CreateShaderResourceView(checkboardTex.Get(), &srvDesc, hDescriptor);
-	//
-	// // next descriptor
-	// hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-	//
-	// srvDesc.Format = iceTex->GetDesc().Format;
-	// srvDesc.Texture2D.MipLevels = iceTex->GetDesc().MipLevels;
-	//
-	// md3dDevice->CreateShaderResourceView(iceTex.Get(), &srvDesc, hDescriptor);
-	//
-	// // next descriptor
-	// hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-	//
-	// srvDesc.Format = white1x1Tex->GetDesc().Format;
-	// srvDesc.Texture2D.MipLevels = white1x1Tex->GetDesc().MipLevels;
-	//
-	// md3dDevice->CreateShaderResourceView(white1x1Tex.Get(), &srvDesc, hDescriptor);
+	CreateShaderResourceView(myTextures["bricksTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+
+	CreateShaderResourceView(myTextures["checkboardTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+
+	CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+
+	CreateShaderResourceView(myTextures["scaleTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+
+	
 
 	// For ImGui
 	D3D12_DESCRIPTOR_HEAP_DESC imGuiSrvHeapDesc = {};
@@ -1132,9 +1103,9 @@ void D3DApp::BuildDescriptorHeaps()
 
 void D3DApp::BuildShadersAndInputLayout()
 {
-	mShaders["VS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["VS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "VS", "vs_5_1");
 	// mShaders["GS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"GS","gs_5_0");
-	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_0");
+	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
 	
 	mInputLayout =
 	{
@@ -1239,42 +1210,42 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 
 void D3DApp::BuildMaterials()
 {
-	auto whiteMat = std::make_unique<Material>();
-	whiteMat->Name = "whiteMat";
-	whiteMat->MatCBIndex = 0;
-	whiteMat->DiffuseSrvHeapIndex = 1;
-	whiteMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	whiteMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	whiteMat->Roughness = 0.5f;
+	auto planeMat = std::make_unique<Material>();
+	planeMat->Name = "planeMat";
+	planeMat->MatCBIndex = 0;
+	planeMat->DiffuseSrvHeapIndex = 0;
+	planeMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	planeMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	planeMat->Roughness = 0.5f;
 
-	auto bricks = std::make_unique<Material>();
-	bricks->Name = "bricks";
-	bricks->MatCBIndex = 1;
-	bricks->DiffuseSrvHeapIndex = 0;
-	bricks->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	bricks->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	bricks->Roughness = 0.5f;
-
-	auto checkboard = std::make_unique<Material>();
-	checkboard->Name = "checkboard";
-	checkboard->MatCBIndex = 2;
-	checkboard->DiffuseSrvHeapIndex = 1;
-	checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	checkboard->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	checkboard->Roughness = 0.5f;
+	// auto bricks = std::make_unique<Material>();
+	// bricks->Name = "bricks";
+	// bricks->MatCBIndex = 1;
+	// bricks->DiffuseSrvHeapIndex = 1;
+	// bricks->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	// bricks->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	// bricks->Roughness = 0.5f;
+	//
+	// auto checkboard = std::make_unique<Material>();
+	// checkboard->Name = "checkboard";
+	// checkboard->MatCBIndex = 2;
+	// checkboard->DiffuseSrvHeapIndex = 2;
+	// checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	// checkboard->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	// checkboard->Roughness = 0.5f;
+	//
+	// auto ice = std::make_unique<Material>();
+	// ice->Name = "ice";
+	// ice->MatCBIndex = 3;
+	// ice->DiffuseSrvHeapIndex = 0;
+	// ice->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	// ice->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	// ice->Roughness = 0.5f;
 	
-	auto ice = std::make_unique<Material>();
-	ice->Name = "ice";
-	ice->MatCBIndex = 3;
-	ice->DiffuseSrvHeapIndex = 2;
-	ice->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	ice->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	ice->Roughness = 0.5f;
-	
-	mMaterials["whiteMat"] = std::move(whiteMat);
-	mMaterials["bricks"] = std::move(bricks);
-	mMaterials["checkboard"] = std::move(checkboard);
-	mMaterials["ice"] = std::move(ice);
+	mMaterials["planeMat"] = std::move(planeMat);
+	// mMaterials["bricks"] = std::move(bricks);
+	// mMaterials["checkboard"] = std::move(checkboard);
+	// mMaterials["ice"] = std::move(ice);
 
 }
 
@@ -1284,7 +1255,7 @@ void D3DApp::BuildRenderItems()
 	planeRitem->World = MathHelper::Identity4x4();
 	planeRitem->TexTransform = MathHelper::Identity4x4();
 	planeRitem->ObjCBIndex = 0;
-	planeRitem->Mat = mMaterials["whiteMat"].get();
+	planeRitem->Mat = mMaterials["planeMat"].get();
 	planeRitem->Geo = mGeometries["planeGeo"].get();
 	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	planeRitem->IndexCount = planeRitem->Geo->DrawArgs["plane"].IndexCount;
@@ -1312,15 +1283,16 @@ void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
+		// tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
+		// using button to change plane texture
+		// tex.Offset(mTextureIndex, mCbvSrvUavDescriptorSize);
+
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
 
-		cmdList->SetGraphicsRootDescriptorTable(0, tex);
-		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
-		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
+		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+		cmdList->SetGraphicsRootConstantBufferView(2, matCBAddress);
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
@@ -1407,6 +1379,27 @@ void D3DApp::InitImGui()
 	mImGui = tmpImGui;
 
 	mImGui->InitImGui();
+}
+
+void D3DApp::CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT& pOffset,
+	UINT pDescriptorSize)
+{
+	if(pInTexture == nullptr)
+	{
+		// Error
+		MessageBoxA(nullptr,"Texture is nullptr","DirectXError",MB_OK | MB_ICONERROR);
+		return;
+	}
+	if(pDescriptorHeap==nullptr)
+	{
+		// Error
+		MessageBoxA(nullptr,"pDescriptorHeap is nullptr","DirectXError",MB_OK | MB_ICONERROR);
+
+		return;
+	}
+	
+	pInTexture->CreateShaderResourceView(md3dDevice.Get(),pDescriptorHeap, pOffset,pDescriptorSize);
+	++pOffset;
 }
 
 
