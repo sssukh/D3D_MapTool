@@ -4,6 +4,7 @@
 #include <WindowsX.h>
 #include "pix3.h"
 #include "myRay.h"
+#include "NormalMapGenerator.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace std;
@@ -102,6 +103,8 @@ int D3DApp::Run()
 				mImGui->DrawMousePlanePosWindow(mMousePosOnPlane);
 				
 				mImGui->DrawPlaneTextureListWindow(mTextureIndex);
+
+				mImGui->DrawWireFrameModeWindow(mIsWireFrameMode);
 				
                 Draw(mTimer);
 
@@ -140,9 +143,12 @@ bool D3DApp::Initialize()
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	mCam.SetPosition(0.0f,2.0f,-15.0f);
+
+	mNormalMapGenerator = new NormalMapGenerator(md3dDevice.Get());
 	
 	LoadTextures();
 	BuildRootSignature();
+	BuildPostProcessRootSignature();
 	// ImGui추가했음
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
@@ -155,7 +161,13 @@ bool D3DApp::Initialize()
 	// Init ImGui
 	InitImGui();
 
-
+	// Init normal map generator
+	// need to initialized before load Textures and build descriptor heaps
+	// it need to be set after heignt map set and descriptor heap builded. 
+	
+	
+	// mNormalMapGenerator = new NormalMapGenerator(md3dDevice.Get(),heightTex.Width,heightTex.Height,heightTex.Format,
+	// 	hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize)); 
 	
 	
 	// Execute the initialization commands.
@@ -335,6 +347,8 @@ void D3DApp::Draw(const GameTimer& gt)
 	// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	
 	
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -347,13 +361,32 @@ void D3DApp::Draw(const GameTimer& gt)
 	
     // Specify the buffers we are going to render to.
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-
+	
 	
 	ID3D12DescriptorHeap* descriptorHeaps[] = {mSrvDescriptorHeap.Get()};
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps),descriptorHeaps);
 
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	// need renewal
+	if(mNormalMapGenerator->GetDirty())
+	{
+		mNormalMapGenerator->Execute(mCommandList.Get(),mPostProcessRootSignature.Get(),
+			mPSOs["normalMapping"].Get(),myTextures["scaleTex"]->Resource.Get());
 
+		// Get normal map
+		mNormalMapGenerator->GetNormalMap(mCommandList.Get(),myTextures["normalTex"]->Resource.Get());
+
+		// myTextures["normalTex"]->Resource = mNormalMapGenerator->GetNormalMap();
+		// set normal map
+		// CreateShaderResourceView(myTextures["normalTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+		// mSrvDescriptorHeapObjCount--;
+	}
+	
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	// 
+	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
+	
+	if(mIsWireFrameMode)
+		mCommandList->SetPipelineState(mPSOs["opaqueWireFrame"].Get());
 	// UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
 	auto passCB = mCurrFrameResource->PassCB->Resource();
@@ -361,10 +394,9 @@ void D3DApp::Draw(const GameTimer& gt)
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	mCommandList->SetGraphicsRootDescriptorTable(3, tex);
-
 	
 	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::Opaque]);
-	// extra end
+	
 
 
 	// ImGui Render
@@ -377,7 +409,7 @@ void D3DApp::Draw(const GameTimer& gt)
 
     // Done recording commands.
 	ThrowIfFailed(mCommandList->Close());
- 
+	
     // Add the command list to the queue for execution.
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -1014,17 +1046,24 @@ void D3DApp::LoadTextures()
 
 	myTextures[mywhiteTex->Name] = std::move(mywhiteTex);
 
-	auto myGrayScaleTex = std::make_unique<myTexture>("scaleTex",L"../../Textures/gray.bmp");
+	auto myGrayScaleTex = std::make_unique<myTexture>("scaleTex",L"../../Textures/OIP.jpg");
 	myGrayScaleTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 
 	myTextures[myGrayScaleTex->Name] = std::move(myGrayScaleTex);
+
+	// Create normal map from height map and set myTexture
+	auto myNormalTex = std::make_unique<myTexture>("normalTex",L"");
+	CreateEmptyNormalMap(myTextures["scaleTex"]->Resource.Get());
+	myNormalTex->Resource = mNormalMap;
+
+	myTextures[myNormalTex->Name] = std::move(myNormalTex);
 }
 
 void D3DApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
-
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6, 0);
+	
 	// Root parameter can be a table, root descriptor or root constants.
 	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 
@@ -1032,7 +1071,9 @@ void D3DApp::BuildRootSignature()
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsConstantBufferView(2);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	// 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_ALL);
+	// slotRootParameter[4].InitAsDescriptorTable(1,&heightMapTable,D3D12_SHADER_VISIBILITY_ALL);
 
 
 	auto staticSamplers = GetStaticSamplers();
@@ -1072,12 +1113,12 @@ void D3DApp::BuildDescriptorHeaps()
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-	//
-	// Fill out the heap with actual descriptors.
-	//
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
-	
+	// Create the heightMap srv heap
+	// D3D12_DESCRIPTOR_HEAP_DESC heightMapHeapDesc = {};
+	// srvHeapDesc.NumDescriptors = 5;
+	// srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	// srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	// ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heightMapHeapDesc, IID_PPV_ARGS(&mHeightMapDescriptorHeap)));
 
 	CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 
@@ -1086,10 +1127,25 @@ void D3DApp::BuildDescriptorHeaps()
 	CreateShaderResourceView(myTextures["checkboardTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 
 	CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-
+	
 	CreateShaderResourceView(myTextures["scaleTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 
+	CreateShaderResourceView(myTextures["normalTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+
+
+	D3D12_RESOURCE_DESC heightTex = myTextures["scaleTex"]->Resource->GetDesc();
+	INT texOffset = myTextures["scaleTex"]->mHandleOffset;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize);
+	// call buildResource()
+	mNormalMapGenerator->SetNewNormalMap(heightTex.Width,heightTex.Height,hDescriptor);
 	
+	// normal Map generator 에서 build descriptor() 호출해야함. 생성을 앞으로 당겨야함.
+	// 임시적으로 지정하긴했지만 나중에는 offset도 건드려야함.
+	mNormalMapGenerator->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize)
+		,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize)
+		,mCbvSrvUavDescriptorSize);
 
 	// For ImGui
 	D3D12_DESCRIPTOR_HEAP_DESC imGuiSrvHeapDesc = {};
@@ -1105,6 +1161,7 @@ void D3DApp::BuildShadersAndInputLayout()
 {
 	mShaders["VS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "VS", "vs_5_1");
 	// mShaders["GS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"GS","gs_5_0");
+	mShaders["normalCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\NormalMapCS.hlsl",nullptr,"NormalCS","cs_5_0");
 	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
 	
 	mInputLayout =
@@ -1145,10 +1202,25 @@ void D3DApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
-
-	// WireFrameMode Option
-	// opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	// same opaque Pso but wireframe mode
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireFramePsoDesc = opaquePsoDesc;
+	opaqueWireFramePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireFramePsoDesc, IID_PPV_ARGS(&mPSOs["opaqueWireFrame"])));
+
+	// compute pso for normal mapping
+	D3D12_COMPUTE_PIPELINE_STATE_DESC normalPSO = {};
+	normalPSO.pRootSignature = mPostProcessRootSignature.Get();
+	normalPSO.CS =
+		{
+			reinterpret_cast<BYTE*>(mShaders["normalCS"]->GetBufferPointer()),
+		mShaders["normalCS"]->GetBufferSize()
+		};
+	normalPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&normalPSO,IID_PPV_ARGS(&mPSOs["normalMapping"])));
+	
 }
 
 void D3DApp::BuildFrameResources()
@@ -1400,6 +1472,67 @@ void D3DApp::CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHea
 	
 	pInTexture->CreateShaderResourceView(md3dDevice.Get(),pDescriptorHeap, pOffset,pDescriptorSize);
 	++pOffset;
+}
+
+void D3DApp::BuildPostProcessRootSignature()
+{
+	CD3DX12_DESCRIPTOR_RANGE srvTable;
+	srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
+	CD3DX12_DESCRIPTOR_RANGE uavTable;
+	uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV,1,0);
+
+	CD3DX12_ROOT_PARAMETER slotRootParamter[2];
+
+	slotRootParamter[0].InitAsDescriptorTable(1,&srvTable);
+	slotRootParamter[1].InitAsDescriptorTable(1,&uavTable);
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2,slotRootParamter
+		,0,nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc,D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(),errorBlob.GetAddressOf());
+
+	if(errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
+}
+
+void D3DApp::CreateEmptyNormalMap(ID3D12Resource* pHeightMap)
+{
+	D3D12_RESOURCE_DESC normalDesc;
+	ZeroMemory(&normalDesc, sizeof(D3D12_RESOURCE_DESC));
+
+	normalDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	normalDesc.Alignment = 0;
+	normalDesc.Width = pHeightMap->GetDesc().Width;
+	normalDesc.Height = pHeightMap->GetDesc().Height;
+	normalDesc.DepthOrArraySize = 1;
+	normalDesc.MipLevels = 1;
+	normalDesc.Format = pHeightMap->GetDesc().Format;
+	normalDesc.SampleDesc.Count = 1;
+	normalDesc.SampleDesc.Quality = 0;
+	normalDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	normalDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&normalDesc,
+		D3D12_RESOURCE_STATE_COMMON,
+		nullptr,
+		IID_PPV_ARGS(&mNormalMap)));
 }
 
 

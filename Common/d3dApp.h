@@ -72,6 +72,7 @@ struct RenderItem
 };
 
 class myRay;
+class NormalMapGenerator;
 
 class D3DApp
 {
@@ -154,6 +155,11 @@ private:
 	void InitImGui();
 
 	void CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT& pOffset, UINT pDescriptorSize);
+
+	void BuildPostProcessRootSignature();
+
+	// Create empty resource using heightMap format
+	void CreateEmptyNormalMap(ID3D12Resource* pHeightMap);
 protected:
 
     static D3DApp* mApp;
@@ -218,10 +224,18 @@ private:
 	// UINT mCbvSrvDescriptorSize = 0;
 
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+	
+	// RootSignature for Compute Shader
+	ComPtr<ID3D12RootSignature> mPostProcessRootSignature = nullptr;
 
+	
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 	// Use this count instead of indivisual input
 	INT mSrvDescriptorHeapObjCount=0;
+
+	ComPtr<ID3D12DescriptorHeap> mHeightMapDescriptorHeap = nullptr;
+	INT mHeightMapDescriptorHeapObjCount=0;
+
 	
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
@@ -270,5 +284,11 @@ private:
 	myRay* mMouseRay = nullptr;
 
 	UINT mTextureIndex=1;
+
+	bool mIsWireFrameMode = false;
+
+	NormalMapGenerator* mNormalMapGenerator = nullptr;
+
+	ID3D12Resource* mNormalMap = nullptr;
 };
 

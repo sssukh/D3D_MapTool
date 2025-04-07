@@ -22,9 +22,9 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
 
     if(SUCCEEDED(result))
     {
-        // check md3d12device
+        // resource 받아오기
         result = DirectX::CreateTexture(pD3D12Device,image.GetMetadata(),&Resource);
-
+            
         if(FAILED(result))
             return result;
 
@@ -92,6 +92,8 @@ void myTexture::CreateShaderResourceView(ID3D12Device* pD3D12Device, ID3D12Descr
     
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mD3D12DescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
+    
+    
     hDescriptor.Offset(mHandleOffset,pDescriptorSize);
     
     // auto bricksTex = mTextures["bricksTex"]->Resource;
@@ -108,5 +110,7 @@ void myTexture::CreateShaderResourceView(ID3D12Device* pD3D12Device, ID3D12Descr
     srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
     pD3D12Device->CreateShaderResourceView(Resource.Get(), &srvDesc, hDescriptor);
 }
+
+
 
 

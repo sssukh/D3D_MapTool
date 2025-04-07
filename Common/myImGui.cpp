@@ -1,6 +1,7 @@
 ﻿#include "myImGui.h"
 
 #include <DirectXMath.h>
+#include <string>
 
 
 myImGui::myImGui(HWND pHwnd, ID3D12Device* pDevice, ID3D12CommandQueue* pCommandQueue, int pframeNums,
@@ -109,7 +110,30 @@ void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex)
     
     if(ImGui::Button("Texture3"))
         pTexIndex=3;
-    
+    if(ImGui::Button("height"))
+        pTexIndex=4;
+    if(ImGui::Button("Normal"))
+        pTexIndex=5;
+    ImGui::End();
+}
+
+void myImGui::DrawWireFrameModeWindow(bool& bIsWireFrameMode)
+{
+    ImGui::Begin("WireFrameMode");
+    std::string text;
+    if(bIsWireFrameMode)
+    {
+        text = "SolidMode";
+    }
+    else
+    {
+        text = "WireFrameMode";
+    }
+    if(ImGui::Button(text.c_str()))
+    {
+        bIsWireFrameMode = bIsWireFrameMode^1;
+    }
+
     ImGui::End();
 }
 

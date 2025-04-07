@@ -4,7 +4,7 @@
 // Default shader, currently supports lighting.
 //***************************************************************************************
 
-#pragma enable_d3d11_debug_symbols
+#pragma enable_d3d12_debug_symbols
 
 // Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS
@@ -22,8 +22,7 @@
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
 
-Texture2D    gDiffuseMap[4] : register(t0);
-
+Texture2D    gDiffuseMap[6] : register(t0);
 
 SamplerState gsamPointWrap        : register(s0);
 SamplerState gsamPointClamp       : register(s1);
@@ -103,10 +102,19 @@ VertexOut VS(VertexIn vin)
 {
 	VertexOut vout = (VertexOut)0.0f;
 	
+	// test
+	float4 heightMap = gDiffuseMap[4].SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
+	vin.PosL.y += heightMap.g * 100.0f;
+    
     // Transform to world space.
-    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);	
+
     vout.PosW = posW.xyz;
 
+	float4 normalMap = gDiffuseMap[5].SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
+	// float3 normal = float3(normalMap);
+	
+	// vout.NormalW = mul(normal, (float3x3)gWorld);
     // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
 
@@ -116,6 +124,9 @@ VertexOut VS(VertexIn vin)
 	// Output vertex attributes for interpolation across triangle.
 	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
 	vout.TexC = mul(texC, gMatTransform).xy;
+
+	
+	
 
     return vout;
 }
@@ -147,8 +158,11 @@ float4 PS(VertexOut pin) : SV_Target
 
     float4 litColor = ambient + directLight;
 	
+	float3 PosOnPlane = pin.PosW;
+	PosOnPlane.y = 0.0f;
+
 	// temporary code for check
-	if(length(pin.PosW - gMousePosOnPlane)<5)
+	if(length(PosOnPlane - gMousePosOnPlane)<5)
 		litColor.r = 255.0f;
 
     // Common convention to take alpha from diffuse albedo.

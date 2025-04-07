@@ -40,6 +40,7 @@ public:
     HRESULT GetScratchImage(std::wstring pFilename, DirectX::ScratchImage* sImage);
     
     void CreateShaderResourceView(ID3D12Device* pD3D12Device,ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize);
+
 public:
     // Unique material name for lookup.
     std::string Name;
@@ -51,9 +52,4 @@ public:
     
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mD3D12DescriptorHeap = nullptr;
     INT mHandleOffset;
-
-    // Initialized needed
-    // Microsoft::WRL::ComPtr<ID3D12Device> mD3D12Device = nullptr;
-    // Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mD3D12CommandList = nullptr;
-
 };

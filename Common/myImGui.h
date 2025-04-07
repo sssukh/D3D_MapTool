@@ -78,6 +78,8 @@ public:
 
     // Window for Plane Texture Change
     void DrawPlaneTextureListWindow(UINT& pTexIndex);
+
+    void DrawWireFrameModeWindow(bool& bIsWireFrameMode);
     
 private:
     HWND mHwnd = nullptr;

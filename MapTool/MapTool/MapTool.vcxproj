@@ -144,6 +144,7 @@
     <ClInclude Include="..\..\Common\myImGui.h" />
     <ClInclude Include="..\..\Common\myRay.h" />
     <ClInclude Include="..\..\Common\myTexture.h" />
+    <ClInclude Include="..\..\Common\NormalMapGenerator.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
     <ClInclude Include="..\..\ImGui\imconfig.h" />
     <ClInclude Include="..\..\ImGui\imgui.h" />
@@ -246,6 +247,7 @@
       <AdditionalIncludeDirectories>C:\MapTool\MapTool\packages\WinPixEventRuntime.1.0.240308001\build\..\Include\WinPixEventRuntime;</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\Common\myTexture.cpp" />
+    <ClCompile Include="..\..\Common\NormalMapGenerator.cpp" />
     <ClCompile Include="..\..\ImGui\imgui.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_demo.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_draw.cpp" />

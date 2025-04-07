@@ -37,9 +37,12 @@ struct PassConstants
 	
     Light Lights[MaxLights];
 
+	
 	DirectX::XMFLOAT3 MouseProjPos = {0.0f,0.0f,0.0f};
 
 	UINT TextureIndex=1;
+
+	// DirectX::XMFLOAT2 texelSize;
 };
 
 struct Vertex
