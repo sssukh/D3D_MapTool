@@ -348,13 +348,10 @@ void D3DApp::Draw(const GameTimer& gt)
 	// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
-
-	
 	
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
 	
     // Clear the back buffer and depth buffer.
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
@@ -371,15 +368,7 @@ void D3DApp::Draw(const GameTimer& gt)
 	if(mNormalMapGenerator->GetDirty())
 	{
 		mNormalMapGenerator->Execute(mCommandList.Get(),mPostProcessRootSignature.Get(),
-			mPSOs["normalMapping"].Get(),myTextures["scaleTex"]->Resource.Get());
-
-		// Get normal map
-		mNormalMapGenerator->GetNormalMap(mCommandList.Get(),myTextures["normalTex"]->Resource.Get());
-
-		// myTextures["normalTex"]->Resource = mNormalMapGenerator->GetNormalMap();
-		// set normal map
-		// CreateShaderResourceView(myTextures["normalTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-		// mSrvDescriptorHeapObjCount--;
+			mPSOs["normalMapping"].Get(),myTextures["heightTex"]->Resource.Get());
 	}
 	
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
@@ -393,12 +382,23 @@ void D3DApp::Draw(const GameTimer& gt)
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1,passCB->GetGPUVirtualAddress());
 
+	// bind srv Textures
 	CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	mCommandList->SetGraphicsRootDescriptorTable(3, tex);
+
+	// bind height map
+	CD3DX12_GPU_DESCRIPTOR_HANDLE heightTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	heightTex.Offset(myTextures["heightTex"]->mHandleOffset,mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(4,heightTex);
+
+	// bind normal map
+	CD3DX12_GPU_DESCRIPTOR_HANDLE normalTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	INT normalOffset = mMaxSrvCount+mMaxHeightCount;
+	normalTex.Offset(normalOffset,mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(5,normalTex);
 	
 	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::Opaque]);
 	
-
 
 	// ImGui Render
 	mImGui->Render(mCommandList.Get());
@@ -1047,26 +1047,29 @@ void D3DApp::LoadTextures()
 
 	myTextures[mywhiteTex->Name] = std::move(mywhiteTex);
 
-	auto myGrayScaleTex = std::make_unique<myTexture>("scaleTex",L"../../Textures/OIP.jpg");
-	myGrayScaleTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+	auto myHeightTex = std::make_unique<myTexture>("heightTex",L"../../Textures/OIP.jpg");
+	myHeightTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 
-	myTextures[myGrayScaleTex->Name] = std::move(myGrayScaleTex);
-
-	// Create normal map from height map and set myTexture
-	auto myNormalTex = std::make_unique<myTexture>("normalTex",L"");
-	CreateEmptyNormalMap(myTextures["scaleTex"]->Resource.Get());
-	myNormalTex->Resource = mNormalMap;
-
-	myTextures[myNormalTex->Name] = std::move(myNormalTex);
+	myTextures[myHeightTex->Name] = std::move(myHeightTex);
+	
 }
 
 void D3DApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 6, 0);
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, mMaxSrvCount, 0);
+
+	CD3DX12_DESCRIPTOR_RANGE heightTable;
+	heightTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV,1,mMaxSrvCount);
+	
+	CD3DX12_DESCRIPTOR_RANGE normalTable;
+	normalTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, mMaxSrvCount + mMaxHeightCount);
+
+	
+	
 	
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
 
 	// Perfomance TIP: Order from most frequent to least frequent.
 	slotRootParameter[0].InitAsConstantBufferView(0);
@@ -1074,13 +1077,15 @@ void D3DApp::BuildRootSignature()
 	slotRootParameter[2].InitAsConstantBufferView(2);
 	// 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[4].InitAsDescriptorTable(1,&heightTable,D3D12_SHADER_VISIBILITY_VERTEX);
+	slotRootParameter[5].InitAsDescriptorTable(1,&normalTable,D3D12_SHADER_VISIBILITY_VERTEX);
 	// slotRootParameter[4].InitAsDescriptorTable(1,&heightMapTable,D3D12_SHADER_VISIBILITY_ALL);
 
 
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -1109,36 +1114,40 @@ void D3DApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 20;
+	srvHeapDesc.NumDescriptors = mMaxSrvCount + mMaxHeightCount + mMaxNormalCount;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
 	CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-
+	++mSrvDescriptorHeapObjCount;
+	
 	CreateShaderResourceView(myTextures["bricksTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	++mSrvDescriptorHeapObjCount;
 
 	CreateShaderResourceView(myTextures["checkboardTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	++mSrvDescriptorHeapObjCount;
 
 	CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	++mSrvDescriptorHeapObjCount;
+
+	INT heightMapOffset = mMaxSrvCount;
+	CreateShaderResourceView(myTextures["heightTex"].get(),mSrvDescriptorHeap.Get(),heightMapOffset,mCbvSrvUavDescriptorSize);
+
 	
-	CreateShaderResourceView(myTextures["scaleTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-
-	CreateShaderResourceView(myTextures["normalTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-
-
-	D3D12_RESOURCE_DESC heightTex = myTextures["scaleTex"]->Resource->GetDesc();
-	INT texOffset = myTextures["scaleTex"]->mHandleOffset;
+	D3D12_RESOURCE_DESC heightTex = myTextures["heightTex"]->Resource->GetDesc();
+	INT texOffset = myTextures["heightTex"]->mHandleOffset;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize);
 	// call buildResource()
 	mNormalMapGenerator->SetNewNormalMap(heightTex.Width,heightTex.Height,hDescriptor);
-	
+
+	INT normalMapGenOffset = mMaxSrvCount + mMaxHeightCount;
 	// normal Map generator 에서 build descriptor() 호출해야함. 생성을 앞으로 당겨야함.
 	// 임시적으로 지정하긴했지만 나중에는 offset도 건드려야함.
 	mNormalMapGenerator->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize)
-		,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize)
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),normalMapGenOffset,mCbvSrvUavDescriptorSize)
+		,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),normalMapGenOffset,mCbvSrvUavDescriptorSize)
 		,mCbvSrvUavDescriptorSize);
 
 	// For ImGui
@@ -1465,7 +1474,6 @@ void D3DApp::CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHea
 	}
 	
 	pInTexture->CreateShaderResourceView(md3dDevice.Get(),pDescriptorHeap, pOffset,pDescriptorSize);
-	++pOffset;
 }
 
 void D3DApp::BuildPostProcessRootSignature()

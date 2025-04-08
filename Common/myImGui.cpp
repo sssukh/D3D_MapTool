@@ -111,9 +111,9 @@ void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex)
     if(ImGui::Button("Texture3"))
         pTexIndex=3;
     if(ImGui::Button("height"))
-        pTexIndex=4;
+        pTexIndex=20;
     if(ImGui::Button("Normal"))
-        pTexIndex=5;
+        pTexIndex=21;
     ImGui::End();
 }
 

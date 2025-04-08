@@ -290,5 +290,9 @@ private:
 	NormalMapGenerator* mNormalMapGenerator = nullptr;
 
 	ID3D12Resource* mNormalMap = nullptr;
+
+	UINT mMaxSrvCount= 20;
+	UINT mMaxHeightCount = 1;
+	UINT mMaxNormalCount = 2;
 };
 

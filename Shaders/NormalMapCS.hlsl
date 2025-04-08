@@ -26,6 +26,8 @@ void NormalCS(int3 groupThreadID : SV_GroupThreadID,
 	float3 posUp = float3(xyPos.x,gInput[int2(dispatchThreadID.x,minY)].r,xyPos.y-dy);
 	float3 posDown = float3(xyPos.x,gInput[int2(dispatchThreadID.x,maxY)].r,xyPos.y+dy);
 
+	// 중심차분법
+
 	float3 gradX = posRight - posLeft;
 	float3 gradY = posUp - posDown;
 

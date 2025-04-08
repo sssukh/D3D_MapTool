@@ -19,10 +19,6 @@ public:
         ID3D12PipelineState* pNormalMappingPso,
         ID3D12Resource* input);
 
-    void GetNormalMap(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* rNormalMap);
-
-    ID3D12Resource* GetNormalMap(){ return mNormalMap.Get();}
-
     void SetNewNormalMap(UINT width, UINT height, CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapGpuHandle);
 
     bool GetDirty() const { return bNormalDirty; }

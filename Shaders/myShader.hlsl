@@ -22,7 +22,11 @@
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
 
+
+
 Texture2D    gDiffuseMap[6] : register(t0);
+Texture2D    gHeightMap : register(t20);
+Texture2D    gNormalMap : register(t21);
 
 SamplerState gsamPointWrap        : register(s0);
 SamplerState gsamPointClamp       : register(s1);
@@ -103,7 +107,7 @@ VertexOut VS(VertexIn vin)
 	VertexOut vout = (VertexOut)0.0f;
 	
 	// test
-	float4 heightMap = gDiffuseMap[4].SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
+	float4 heightMap = gHeightMap.SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
 	vin.PosL.y += heightMap.g * 100.0f;
     
     // Transform to world space.
@@ -111,7 +115,7 @@ VertexOut VS(VertexIn vin)
 
     vout.PosW = posW.xyz;
 
-	float4 normalMap = gDiffuseMap[5].SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
+	float4 normalMap = gNormalMap.SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
 	vin.NormalL =  float3(normalMap.rgb);
 	
 	// vout.NormalW = mul(normal, (float3x3)gWorld);

@@ -15,9 +15,7 @@ void NormalMapGenerator::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc
     mNormalGpuSrv = hGpuDescriptor;
     mNormalCpuUav = hCpuDescriptor.Offset(1,descriptorSize);
     mNormalGpuUav = hGpuDescriptor.Offset(1,descriptorSize);
-             
     
-
     BuildDescriptors();
 }
 
@@ -38,8 +36,6 @@ void NormalMapGenerator::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Root
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mNormalMap.Get(),
         D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 
-    
-
     // 8,8,1 is defined in Compute Shader
     UINT numGroupsX = (UINT)ceilf(mWidth/8.0f);
     UINT numGroupsY = (UINT)ceilf(mHeight/8.0f);
@@ -54,23 +50,6 @@ void NormalMapGenerator::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Root
 
     // renewal done
     bNormalDirty = false;
-}
-
-void NormalMapGenerator::GetNormalMap(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* rNormalMap)
-{
-    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mNormalMap.Get(),
-        D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_COPY_SOURCE));
-
-    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(rNormalMap,
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COPY_DEST));
-    
-    pCmdList->CopyResource(rNormalMap,mNormalMap.Get());
-    
-    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mNormalMap.Get(),
-        D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_COMMON));
-    
-    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(rNormalMap,
-        D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 }
 
 void NormalMapGenerator::SetNewNormalMap(UINT width, UINT height, CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapGpuHandle)
@@ -93,7 +72,6 @@ void NormalMapGenerator::BuildDescriptors()
     srvDesc.Texture2D.MipLevels = 1;
     
     mD3DDevice->CreateShaderResourceView(mNormalMap.Get(), &srvDesc, mNormalCpuSrv);
-
     
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 
