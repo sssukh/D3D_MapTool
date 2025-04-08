@@ -108,7 +108,7 @@ VertexOut VS(VertexIn vin)
 	
 	// test
 	float4 heightMap = gHeightMap.SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
-	vin.PosL.y += heightMap.g * 100.0f;
+	vin.PosL.y += heightMap.r * 100.0f;
     
     // Transform to world space.
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);	

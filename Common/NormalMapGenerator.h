@@ -23,7 +23,8 @@ public:
 
     bool GetDirty() const { return bNormalDirty; }
 
-    ID3D12Resource* GetNormalMap() const { return mNormalMap.Get(); }
+    UINT GetWidth() const {return mWidth;}
+    UINT GetHeight() const {return mHeight;}
 private:
     void BuildDescriptors();
     void BuildResources();

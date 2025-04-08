@@ -153,7 +153,12 @@ bool D3DApp::Initialize()
 	// ImGui추가했음
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
-	BuildPlaneGeometry(100,100,100,100);
+
+	// mNormalMapGenerator need to be initialized by SetNewHeightMap() at BuildDescriptorHeaps().
+	UINT width = mNormalMapGenerator->GetWidth();
+	UINT height = mNormalMapGenerator->GetHeight();
+	
+	BuildPlaneGeometry(width,height,width,height);
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -1047,7 +1052,7 @@ void D3DApp::LoadTextures()
 
 	myTextures[mywhiteTex->Name] = std::move(mywhiteTex);
 
-	auto myHeightTex = std::make_unique<myTexture>("heightTex",L"../../Textures/OIP.jpg");
+	auto myHeightTex = std::make_unique<myTexture>("heightTex",L"../../Textures/gray7.jpg");
 	myHeightTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 
 	myTextures[myHeightTex->Name] = std::move(myHeightTex);
@@ -1247,34 +1252,67 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 		vertices[i].Normal = plane.Vertices[i].Normal;
 		vertices[i].TexC = plane.Vertices[i].TexC;
 	}
-	std::vector<std::uint16_t> indices = plane.GetIndices16();
-	
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	UINT indexCount;
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "planeGeo";
+	
+	if(m*n>(UINT)1<<16)
+	{
+		std::vector<std::uint32_t> indices = plane.Indices32;
+		indexCount = (UINT)indices.size();
+		
+		const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	
+		const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint32_t);
 
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),vertices.data(),vbByteSize);
+		ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+		CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),vertices.data(),vbByteSize);
 
-	ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),indices.data(),ibByteSize);
+		ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
+		CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),indices.data(),ibByteSize);
 
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
-		,vertices.data(),vbByteSize,geo->VertexBufferUploader);
+		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
+			,vertices.data(),vbByteSize,geo->VertexBufferUploader);
 
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
-		,indices.data(),ibByteSize,geo->IndexBufferUploader);
+		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
+			,indices.data(),ibByteSize,geo->IndexBufferUploader);
 
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
+		geo->VertexByteStride = sizeof(Vertex);
+		geo->VertexBufferByteSize = vbByteSize;
+		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+		geo->IndexBufferByteSize = ibByteSize;
+	}
+	else
+	{
+		std::vector<std::uint16_t> indices = plane.GetIndices16();
+		indexCount = (UINT)indices.size();
 
+		const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	
+		const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+		ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+		CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),vertices.data(),vbByteSize);
+
+		ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
+		CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),indices.data(),ibByteSize);
+
+		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
+			,vertices.data(),vbByteSize,geo->VertexBufferUploader);
+
+		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
+			,indices.data(),ibByteSize,geo->IndexBufferUploader);
+
+		geo->VertexByteStride = sizeof(Vertex);
+		geo->VertexBufferByteSize = vbByteSize;
+		geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+		geo->IndexBufferByteSize = ibByteSize;
+	}
+	
 	SubmeshGeometry submesh;
-	submesh.IndexCount = (UINT)indices.size();
+	submesh.IndexCount = indexCount;
 	submesh.StartIndexLocation =0;
 	submesh.BaseVertexLocation = 0;
 
