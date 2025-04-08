@@ -53,7 +53,7 @@ void NormalMapGenerator::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Root
        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_COMMON));
 
     // renewal done
-    // bNormalDirty = false;
+    bNormalDirty = false;
 }
 
 void NormalMapGenerator::GetNormalMap(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* rNormalMap)

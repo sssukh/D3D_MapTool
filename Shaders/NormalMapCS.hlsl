@@ -8,58 +8,31 @@ RWTexture2D<float4> gOutput : register(u0);
 void NormalCS(int3 groupThreadID : SV_GroupThreadID,
 				int3 dispatchThreadID : SV_DispatchThreadID)
 {
-
-
-	// [] [] []
-	// [] [] []
-	// [] [] []
-	int2 xyValues[3][3];
+	int minX = max(0,dispatchThreadID.x-1);
+	int minY = max(0,dispatchThreadID.y-1);
+	int maxX = min(gInput.Length.x-1, dispatchThreadID.x+1);
+	int maxY = min(gInput.Length.y-1, dispatchThreadID.y+1);
 	
-	xyValues[1][1] = dispatchThreadID.xy;	
-
-	{
-		int xValue = max(0,dispatchThreadID.x-1);
-		for(int i=0;i<3;++i)
-		{
-			xyValues[i][0] = int2(xValue,dispatchThreadID.y -1 + i);
-		}
-	}
-	{
-		int xValue = min(gInput.Length.x-1,dispatchThreadID.x+1);
-		for(int i=0;i<3;++i)
-		{
-			xyValues[i][2] = int2(xValue,dispatchThreadID.y -1 +i);
-		}
-	}
+	float tmpX = (float)dispatchThreadID.x/gInput.Length.x;
+	float tmpY = (float)dispatchThreadID.y/gInput.Length.y;
+	float2 xyPos = float2(tmpX, tmpY);
 	
-	{
-		int yValue = max(0,dispatchThreadID.y-1);
-		for(int i=0;i<3;++i)
-		{
-			xyValues[0][i].y =  yValue;
-		}
-		xyValues[0][1].x = dispatchThreadID.x;
-	}
-	{
-		int yValue = min(gInput.Length.y-1,dispatchThreadID.y+1);
-		for(int i=0;i<3;++i)
-		{
-			xyValues[2][i].y =  yValue;
-		}
-		xyValues[2][1].x = dispatchThreadID.x;
-	}
+	float dx = (float)1/gInput.Length.x;
+	float dy = (float)1/gInput.Length.y;
 
-	float3 vec = (0,0,0);
+	float3 posCen = float3(xyPos.xy,gInput[dispatchThreadID.xy].r);
+	float3 posRight = float3(xyPos.x+dx,gInput[int2(maxX,dispatchThreadID.y)].r,xyPos.y);
+	float3 posLeft = float3(xyPos.x-dx,gInput[int2(minX,dispatchThreadID.y)].r,xyPos.y);
+	float3 posUp = float3(xyPos.x,gInput[int2(dispatchThreadID.x,minY)].r,xyPos.y-dy);
+	float3 posDown = float3(xyPos.x,gInput[int2(dispatchThreadID.x,maxY)].r,xyPos.y+dy);
 
-	for(int i=0;i<9;++i)
-	{
-		int2 tmpXY = xyValues[i/3][i%3];
-		vec += float3(tmpXY,gInput[tmpXY].r) - float3(xyValues[1][1],gInput[xyValues[1][1]].r);
-	}
+	float3 gradX = posRight - posLeft;
+	float3 gradY = posUp - posDown;
 
-	vec = normalize(vec);
+	float3 normal = normalize(cross(gradX,gradY));
+
 	
-	float4 normalValue = float4(vec,0.0f);
+	float4 normalValue = float4(normal,0.0f);
 
 	gOutput[dispatchThreadID.xy] = normalValue;
 

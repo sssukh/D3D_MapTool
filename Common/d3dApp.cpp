@@ -142,7 +142,8 @@ bool D3DApp::Initialize()
 	// 힙타입(cbv_srv_uav)에 따른 서술자 크기를 저장
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mCam.SetPosition(0.0f,2.0f,-15.0f);
+	mCam.SetPosition(0.0f,150.0f,-70.0f);
+	mCam.Pitch(0.9f);
 
 	mNormalMapGenerator = new NormalMapGenerator(md3dDevice.Get());
 	
@@ -1112,13 +1113,6 @@ void D3DApp::BuildDescriptorHeaps()
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
-
-	// Create the heightMap srv heap
-	// D3D12_DESCRIPTOR_HEAP_DESC heightMapHeapDesc = {};
-	// srvHeapDesc.NumDescriptors = 5;
-	// srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	// srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	// ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heightMapHeapDesc, IID_PPV_ARGS(&mHeightMapDescriptorHeap)));
 
 	CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 

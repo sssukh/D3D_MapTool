@@ -112,7 +112,7 @@ VertexOut VS(VertexIn vin)
     vout.PosW = posW.xyz;
 
 	float4 normalMap = gDiffuseMap[5].SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
-	// float3 normal = float3(normalMap);
+	vin.NormalL =  float3(normalMap.rgb);
 	
 	// vout.NormalW = mul(normal, (float3x3)gWorld);
     // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
