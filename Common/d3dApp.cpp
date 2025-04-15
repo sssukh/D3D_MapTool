@@ -32,6 +32,8 @@ D3DApp::D3DApp(HINSTANCE hInstance)
     // Only one D3DApp can be constructed.
     assert(mApp == nullptr);
     mApp = this;
+
+	bIsHeightMapDirty = false;
 }
 
 D3DApp::~D3DApp()
@@ -97,12 +99,30 @@ int D3DApp::Run()
 				mImGui->DrawImGui();
 				
 				CalculateFrameStats();
+
+				
+				
 				Update(mTimer);
 
+				if(mImGui->DrawTextureOpenWindow(mHeightMapDirectory))
+				{
+					mNewHeightMap = std::make_unique<myTexture>("heightTex",mHeightMapDirectory);
+					if(FAILED(mNewHeightMap->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get(),mCommandQueue.Get(),mCurrFrameResource->CmdListAlloc.Get())))
+					{
+						MessageBoxA(nullptr,"Can't create height map texture from file","DirectXError",MB_OK | MB_ICONERROR);
+
+					}
+
+					mHeightMapBuffer.UpdateHeightMap(std::move(mNewHeightMap));
+					// UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
+
+					// BuildPlaneGeometry(heightResource.Width,heightResource.Height,heightResource.Width,heightResource.Height);
+				}
+				
 				// temporary
 				mImGui->DrawMousePlanePosWindow(mMousePosOnPlane);
 				
-				mImGui->DrawPlaneTextureListWindow(mTextureIndex);
+				mImGui->DrawPlaneTextureListWindow(mTextureIndex, mCurrFrameResourceIndex, Descriptors_Per_Frame);
 
 				mImGui->DrawWireFrameModeWindow(mIsWireFrameMode);
 				
@@ -126,7 +146,9 @@ bool D3DApp::Initialize()
 	PIXLoadLatestWinPixGpuCapturerLibrary();
 	if(!InitMainWindow())
 		return false;
+	
 
+	
 	if(!InitDirect3D())
 		return false;
 
@@ -142,10 +164,16 @@ bool D3DApp::Initialize()
 	// 힙타입(cbv_srv_uav)에 따른 서술자 크기를 저장
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	
+	
+	// 카메라 위치 설정
 	mCam.SetPosition(0.0f,150.0f,-70.0f);
 	mCam.Pitch(0.9f);
-
+	
 	mNormalMapGenerator = new NormalMapGenerator(md3dDevice.Get());
+
+	// Init ImGui
+	InitImGui();
 	
 	LoadTextures();
 	BuildRootSignature();
@@ -155,8 +183,8 @@ bool D3DApp::Initialize()
 	BuildShadersAndInputLayout();
 
 	// mNormalMapGenerator need to be initialized by SetNewHeightMap() at BuildDescriptorHeaps().
-	UINT width = mNormalMapGenerator->GetWidth();
-	UINT height = mNormalMapGenerator->GetHeight();
+	UINT width = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Width;
+	UINT height = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Height;
 	
 	BuildPlaneGeometry(width,height,width,height);
 	BuildMaterials();
@@ -164,8 +192,7 @@ bool D3DApp::Initialize()
 	BuildFrameResources();
 	BuildPSOs();
 
-	// Init ImGui
-	InitImGui();
+	
 
 	// Init normal map generator
 	// need to initialized before load Textures and build descriptor heaps
@@ -325,16 +352,25 @@ void D3DApp::Update(const GameTimer& gt)
 
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
+	// 현재 프레임의 fence가 0이 아니고(프로그램 동작중) mFence(이 프로그램의 fence값)이 현재 프레임의 fence값보다 작으면 
 	if(mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
 	{
+		// mFence가 현재 프레임의 fence값과 같아질 때 까지 대기.
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
 		WaitForSingleObject(eventHandle, INFINITE);
 		CloseHandle(eventHandle);
 	}
+	
+	
+	// 리소스 변경
+	
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
 	UpdateMainPassCB(gt);
+	
+	// 지금 사용하는 heightMap으로 업데이트
+	UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
 }
 
 void D3DApp::Draw(const GameTimer& gt)
@@ -368,12 +404,12 @@ void D3DApp::Draw(const GameTimer& gt)
 	
 	ID3D12DescriptorHeap* descriptorHeaps[] = {mSrvDescriptorHeap.Get()};
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps),descriptorHeaps);
-
+	
 	// need renewal
-	if(mNormalMapGenerator->GetDirty())
+	if(mNormalMapGenerator->GetDirty()>0)
 	{
 		mNormalMapGenerator->Execute(mCommandList.Get(),mPostProcessRootSignature.Get(),
-			mPSOs["normalMapping"].Get(),myTextures["heightTex"]->Resource.Get());
+			mPSOs["normalMapping"].Get(),mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get());
 	}
 	
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
@@ -391,14 +427,19 @@ void D3DApp::Draw(const GameTimer& gt)
 	CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	mCommandList->SetGraphicsRootDescriptorTable(3, tex);
 
+
+	// mCommandList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get(),
+	// 	D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+	
 	// bind height map
 	CD3DX12_GPU_DESCRIPTOR_HANDLE heightTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	heightTex.Offset(myTextures["heightTex"]->mHandleOffset,mCbvSrvUavDescriptorSize);
+	INT heightOffset = mHeightMapBuffer.GetCurrentUsingHeightmap()->mHandleOffset;
+	heightTex.Offset(heightOffset,mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(4,heightTex);
 
 	// bind normal map
 	CD3DX12_GPU_DESCRIPTOR_HANDLE normalTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	INT normalOffset = mMaxSrvCount+mMaxHeightCount;
+	INT normalOffset = mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount;
 	normalTex.Offset(normalOffset,mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(5,normalTex);
 	
@@ -658,6 +699,8 @@ bool D3DApp::InitDirect3D()
 	debugController->EnableDebugLayer();
 }
 #endif
+
+	
 
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
 
@@ -970,6 +1013,7 @@ void D3DApp::UpdateMaterialCBs(const GameTimer& gt)
 			matConstants.Roughness = mat->Roughness;
 			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
 
+			// update and upload to uploadheap
 			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
 			// Next FrameResource need to be updated too.
@@ -1032,6 +1076,7 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 
 void D3DApp::LoadTextures()
 {
+	// TODO : textures should be take place in frame buffers 
 	auto myiceTex = std::make_unique<myTexture>("iceTex",L"../../Textures/ice.dds");
 	myiceTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 	
@@ -1052,23 +1097,29 @@ void D3DApp::LoadTextures()
 
 	myTextures[mywhiteTex->Name] = std::move(mywhiteTex);
 
-	auto myHeightTex = std::make_unique<myTexture>("heightTex",L"../../Textures/gray7.jpg");
+	std::wstring test = mImGui->OpenFileDialog();
+	auto myHeightTex = std::make_unique<myTexture>("heightTex",test);
+
+// 	auto myHeightTex = std::make_unique<myTexture>("heightTex",L"../../Textures/gray7.jpg");
 	myHeightTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 
-	myTextures[myHeightTex->Name] = std::move(myHeightTex);
-	
+	mHeightMapBuffer.UpdateHeightMap(std::move(myHeightTex));
 }
 
-void D3DApp::BuildRootSignature()
+void D3DApp:: BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, mMaxSrvCount, 0);
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0);
 
 	CD3DX12_DESCRIPTOR_RANGE heightTable;
-	heightTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV,1,mMaxSrvCount);
+	heightTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV,1,4);
 	
 	CD3DX12_DESCRIPTOR_RANGE normalTable;
-	normalTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, mMaxSrvCount + mMaxHeightCount);
+	normalTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+	
+	
+	
+	
 
 	
 	
@@ -1119,41 +1170,55 @@ void D3DApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = mMaxSrvCount + mMaxHeightCount + mMaxNormalCount;
+	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-	CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	// // 널 SRV 디스크립터 생성
+	// D3D12_SHADER_RESOURCE_VIEW_DESC nullSrvDesc = {};
+	// nullSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	// nullSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	// nullSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	// nullSrvDesc.Texture2D.MipLevels = 1;
+	//
+	// for (UINT i = 0; i < srvHeapDesc.NumDescriptors; ++i) {
+	// 	md3dDevice->CreateShaderResourceView(
+	// 		nullptr, 
+	// 		&nullSrvDesc, 
+	// 		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),i,mCbvSrvUavDescriptorSize)
+	// 	);
+	// }
+
+	
+	for(int i=0;i<gNumFrameResources;++i)
+	{
+		CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame + mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	}
+	++mSrvDescriptorHeapObjCount;
+	for(int i=0;i<gNumFrameResources;++i)
+	{
+		CreateShaderResourceView(myTextures["bricksTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame +mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	}
 	++mSrvDescriptorHeapObjCount;
 	
-	CreateShaderResourceView(myTextures["bricksTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-	++mSrvDescriptorHeapObjCount;
-
-	CreateShaderResourceView(myTextures["checkboardTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-	++mSrvDescriptorHeapObjCount;
-
-	CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-	++mSrvDescriptorHeapObjCount;
-
-	INT heightMapOffset = mMaxSrvCount;
-	CreateShaderResourceView(myTextures["heightTex"].get(),mSrvDescriptorHeap.Get(),heightMapOffset,mCbvSrvUavDescriptorSize);
-
+	for(int i=0;i<gNumFrameResources;++i)
+	{
+		CreateShaderResourceView(myTextures["checkboardTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame +mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	}
+		++mSrvDescriptorHeapObjCount;
 	
-	D3D12_RESOURCE_DESC heightTex = myTextures["heightTex"]->Resource->GetDesc();
-	INT texOffset = myTextures["heightTex"]->mHandleOffset;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize);
-	// call buildResource()
-	mNormalMapGenerator->SetNewNormalMap(heightTex.Width,heightTex.Height,hDescriptor);
-
-	INT normalMapGenOffset = mMaxSrvCount + mMaxHeightCount;
-	// normal Map generator 에서 build descriptor() 호출해야함. 생성을 앞으로 당겨야함.
-	// 임시적으로 지정하긴했지만 나중에는 offset도 건드려야함.
-	mNormalMapGenerator->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),normalMapGenOffset,mCbvSrvUavDescriptorSize)
-		,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),normalMapGenOffset,mCbvSrvUavDescriptorSize)
-		,mCbvSrvUavDescriptorSize);
+	for(int i=0;i<gNumFrameResources;++i)
+	{
+		CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame +mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	}
+	++mSrvDescriptorHeapObjCount;
+	
+	
+	// 이론상 update하고 draw하기 때문에 여기서 안하고 update에서 처리해줘도 되지 않나?
+	// UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
+	
+	
 
 	// For ImGui
 	D3D12_DESCRIPTOR_HEAP_DESC imGuiSrvHeapDesc = {};
@@ -1494,7 +1559,7 @@ void D3DApp::InitImGui()
 	mImGui->InitImGui();
 }
 
-void D3DApp::CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT& pOffset,
+void D3DApp::CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset,
 	UINT pDescriptorSize)
 {
 	if(pInTexture == nullptr)
@@ -1549,31 +1614,61 @@ void D3DApp::BuildPostProcessRootSignature()
 		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
 }
 
-void D3DApp::CreateEmptyNormalMap(ID3D12Resource* pHeightMap)
+void D3DApp::UpdateHeightMap(myTexture* pTexture)
 {
-	D3D12_RESOURCE_DESC normalDesc;
-	ZeroMemory(&normalDesc, sizeof(D3D12_RESOURCE_DESC));
+	if(mHeightMapBuffer.numDirty>0)
+	{
+		// ring buffer index
+		INT heightMapOffset = mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount + mMaxNormalCount + mHeightMapBuffer.mCurrentUsingIndex;
 
-	normalDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	normalDesc.Alignment = 0;
-	normalDesc.Width = pHeightMap->GetDesc().Width;
-	normalDesc.Height = pHeightMap->GetDesc().Height;
-	normalDesc.DepthOrArraySize = 1;
-	normalDesc.MipLevels = 1;
-	normalDesc.Format = pHeightMap->GetDesc().Format;
-	normalDesc.SampleDesc.Count = 1;
-	normalDesc.SampleDesc.Quality = 0;
-	normalDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	normalDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		// create srv for new height map
+		CreateShaderResourceView(pTexture,mSrvDescriptorHeap.Get(),heightMapOffset,mCbvSrvUavDescriptorSize);
+	
+		D3D12_RESOURCE_DESC heightTex = pTexture->Resource->GetDesc();
+		INT texOffset = pTexture->mHandleOffset;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize);
+	
+		// call buildResource()
+		mNormalMapGenerator->SetNewNormalMap(heightTex.Width,heightTex.Height,hDescriptor);
 
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&normalDesc,
-		D3D12_RESOURCE_STATE_COMMON,
-		nullptr,
-		IID_PPV_ARGS(&mNormalMap)));
+		INT normalMapGenOffset = mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount;
+		
+		mNormalMapGenerator->BuildDescriptors(
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),normalMapGenOffset,mCbvSrvUavDescriptorSize)
+			,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),normalMapGenOffset,mCbvSrvUavDescriptorSize)
+			,mCbvSrvUavDescriptorSize);
+
+		mHeightMapBuffer.numDirty--;
+	}
 }
+
+
+// void D3DApp::CreateEmptyNormalMap(ID3D12Resource* pHeightMap)
+// {
+// 	D3D12_RESOURCE_DESC normalDesc;
+// 	ZeroMemory(&normalDesc, sizeof(D3D12_RESOURCE_DESC));
+//
+// 	normalDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+// 	normalDesc.Alignment = 0;
+// 	normalDesc.Width = pHeightMap->GetDesc().Width;
+// 	normalDesc.Height = pHeightMap->GetDesc().Height;
+// 	normalDesc.DepthOrArraySize = 1;
+// 	normalDesc.MipLevels = 1;
+// 	normalDesc.Format = pHeightMap->GetDesc().Format;
+// 	normalDesc.SampleDesc.Count = 1;
+// 	normalDesc.SampleDesc.Quality = 0;
+// 	normalDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+// 	normalDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+//
+// 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+// 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+// 		D3D12_HEAP_FLAG_NONE,
+// 		&normalDesc,
+// 		D3D12_RESOURCE_STATE_COMMON,
+// 		nullptr,
+// 		IID_PPV_ARGS(&mNormalMap)));
+// }
 
 
 

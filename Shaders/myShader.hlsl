@@ -24,9 +24,10 @@
 
 
 
-Texture2D    gDiffuseMap[6] : register(t0);
-Texture2D    gHeightMap : register(t20);
-Texture2D    gNormalMap : register(t21);
+Texture2D    gDiffuseMap[4] : register(t0);
+
+Texture2D    gHeightMap : register(t4);
+Texture2D    gNormalMap : register(t5);
 
 SamplerState gsamPointWrap        : register(s0);
 SamplerState gsamPointClamp       : register(s1);

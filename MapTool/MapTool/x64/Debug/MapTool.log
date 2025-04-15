@@ -1,3 +1,10 @@
-﻿myTexture.obj : error LNK2019: unresolved external symbol "long __cdecl DirectX::CreateTexture(struct ID3D12Device *,struct DirectX::TexMetadata const &,struct ID3D12Resource * *)" (?CreateTexture@DirectX@@YAJPEAUID3D12Device@@AEBUTexMetadata@1@PEAPEAUID3D12Resource@@@Z) referenced in function "public: long __cdecl myTexture::CreateTextureFromFile(class std::basic_string<wchar_t,struct std::char_traits<wchar_t>,class std::allocator<wchar_t> > const &)" (?CreateTextureFromFile@myTexture@@QEAAJAEBV?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@@Z)
-myTexture.obj : error LNK2019: unresolved external symbol "long __cdecl DirectX::PrepareUpload(struct ID3D12Device *,struct DirectX::Image const *,unsigned __int64,struct DirectX::TexMetadata const &,class std::vector<struct D3D12_SUBRESOURCE_DATA,class std::allocator<struct D3D12_SUBRESOURCE_DATA> > &)" (?PrepareUpload@DirectX@@YAJPEAUID3D12Device@@PEBUImage@1@_KAEBUTexMetadata@1@AEAV?$vector@UD3D12_SUBRESOURCE_DATA@@V?$allocator@UD3D12_SUBRESOURCE_DATA@@@std@@@std@@@Z) referenced in function "public: long __cdecl myTexture::CreateTextureFromFile(class std::basic_string<wchar_t,struct std::char_traits<wchar_t>,class std::allocator<wchar_t> > const &)" (?CreateTextureFromFile@myTexture@@QEAAJAEBV?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@@Z)
-C:\MapTool\MapTool\x64\Debug\MapTool.exe : fatal error LNK1120: 2 unresolved externals
+﻿  NormalMapGenerator.cpp
+C:\MapTool\Common\d3dUtil.h(1,1): warning C4819: The file contains a character that cannot be represented in the current code page (949). Save the file in Unicode format to prevent data loss
+  (compiling source file '../../Common/NormalMapGenerator.cpp')
+  
+  myTexture.cpp
+C:\MapTool\Common\d3dUtil.h(1,1): warning C4819: The file contains a character that cannot be represented in the current code page (949). Save the file in Unicode format to prevent data loss
+  (compiling source file '../../Common/myTexture.cpp')
+  
+  Generating Code...
+  MapTool.vcxproj -> C:\MapTool\MapTool\x64\Debug\MapTool.exe

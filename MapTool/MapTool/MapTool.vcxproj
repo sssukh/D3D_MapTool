@@ -146,6 +146,7 @@
     <ClInclude Include="..\..\Common\myTexture.h" />
     <ClInclude Include="..\..\Common\NormalMapGenerator.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
+    <ClInclude Include="..\..\Common\UploadHelper.h" />
     <ClInclude Include="..\..\ImGui\imconfig.h" />
     <ClInclude Include="..\..\ImGui\imgui.h" />
     <ClInclude Include="..\..\ImGui\imgui_impl_dx12.h" />
@@ -248,6 +249,7 @@
     </ClCompile>
     <ClCompile Include="..\..\Common\myTexture.cpp" />
     <ClCompile Include="..\..\Common\NormalMapGenerator.cpp" />
+    <ClCompile Include="..\..\Common\UploadHelper.cpp" />
     <ClCompile Include="..\..\ImGui\imgui.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_demo.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_draw.cpp" />

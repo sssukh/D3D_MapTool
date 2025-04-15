@@ -1,6 +1,8 @@
 ﻿#pragma once
 #include "FrameResource.h"
 
+const int NormalMapBufferSize = 10;
+
 class NormalMapGenerator
 {
 public:
@@ -21,14 +23,17 @@ public:
 
     void SetNewNormalMap(UINT width, UINT height, CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapGpuHandle);
 
-    bool GetDirty() const { return bNormalDirty; }
+    int GetDirty() const { return mNumNormalDirty; }
 
+    Microsoft::WRL::ComPtr<ID3D12Resource> GetCurrentNormalMap() { return mNormalMapBuffer[mCurrentBufferIndex]; }
+    
     UINT GetWidth() const {return mWidth;}
     UINT GetHeight() const {return mHeight;}
 private:
     void BuildDescriptors();
     void BuildResources();
 
+    void AddNormalMap(ID3D12Resource* pNewNormalMap);
     
 
 private:
@@ -45,7 +50,11 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12Resource> mNormalMap = nullptr;
 
+    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mNormalMapBuffer;
+    
     CD3DX12_GPU_DESCRIPTOR_HANDLE mHeightMapGpuSrv;
 
-    bool bNormalDirty = true;
+    int mCurrentBufferIndex = -1;
+    
+    int mNumNormalDirty = 3;
 };

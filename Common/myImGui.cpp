@@ -92,28 +92,37 @@ void myImGui::DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue)
     }
 }
 
-void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex)
+void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex, int gFrameNum, int pDescriptorNumPerFrame)
 {
+    UINT tmp = gFrameNum * pDescriptorNumPerFrame;
     ImGui::Begin("Plane Texture List");
     ImGui::Text("Click the button and change the plane texture");
     if(ImGui::Button("Texture0"))
-        pTexIndex=0;
+        pTexIndex= tmp + 0;
     ImGui::SameLine();
     
     if(ImGui::Button("Texture1"))
-        pTexIndex=1;
+        pTexIndex= tmp + 1;
     ImGui::SameLine();
 
     if(ImGui::Button("Texture2"))
-        pTexIndex=2;
+        pTexIndex= tmp + 2;
     ImGui::SameLine();
     
     if(ImGui::Button("Texture3"))
-        pTexIndex=3;
-    if(ImGui::Button("height"))
-        pTexIndex=20;
+        pTexIndex= tmp + 3;
+    
     if(ImGui::Button("Normal"))
-        pTexIndex=21;
+        pTexIndex= tmp + 20;
+    // if(ImGui::Button("NormalUav"))
+    //     pTexIndex=5;
+    //
+    if(ImGui::Button("height1"))
+        pTexIndex= tmp + 22;
+    if(ImGui::Button("height2"))
+        pTexIndex= tmp + 23;
+    if(ImGui::Button("height3"))
+        pTexIndex= tmp + 24;
     ImGui::End();
 }
 
@@ -136,6 +145,51 @@ void myImGui::DrawWireFrameModeWindow(bool& bIsWireFrameMode)
 
     ImGui::End();
 }
+
+bool myImGui::DrawTextureOpenWindow(std::wstring& rFileDirectory)
+{
+    ImGui::Begin("Select Height Map");
+    std::wstring tmpString = L""; 
+    if(ImGui::Button("Open"))
+    {
+        // 파일 열기
+        tmpString = OpenFileDialog();
+    }
+
+    ImGui::End();
+    
+    if( tmpString!=L"")
+    {
+        
+        rFileDirectory = tmpString;
+        return true;
+    }
+
+    return false;
+}
+
+std::wstring myImGui::OpenFileDialog()
+{
+    OPENFILENAME ofn;       // struct initialize
+    WCHAR szFile[260] = { 0 }; // file directory buffer
+
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = mHwnd;  // 
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile) / sizeof(WCHAR);
+    ofn.lpstrFilter = L"All Files\0*.*\0Text Files\0*.TXT\0";
+    ofn.nFilterIndex = 1;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+    if (GetOpenFileName(&ofn) == TRUE)
+    {
+        return std::wstring(ofn.lpstrFile); // return file directory
+    }
+
+    return L""; // 취소 시 빈 문자열 반환
+}
+
 
 void myImGui::ReleaseImGui()
 {

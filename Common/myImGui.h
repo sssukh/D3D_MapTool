@@ -2,6 +2,7 @@
 
 #include <DirectXMath.h>
 #include <ratio>
+#include <string>
 #include <wrl/event.h>
 
 #include "../ImGui/imgui_impl_dx12.h"
@@ -77,9 +78,14 @@ public:
     void DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue);
 
     // Window for Plane Texture Change
-    void DrawPlaneTextureListWindow(UINT& pTexIndex);
+    void DrawPlaneTextureListWindow(UINT& pTexIndex, int gFrameNum, int pDescriptorNumPerFrame);
 
     void DrawWireFrameModeWindow(bool& bIsWireFrameMode);
+
+    bool DrawTextureOpenWindow(std::wstring& rFileDirectory );
+    
+// private:
+    std::wstring OpenFileDialog();
     
 private:
     HWND mHwnd = nullptr;

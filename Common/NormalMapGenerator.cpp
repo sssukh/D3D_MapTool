@@ -33,7 +33,7 @@ void NormalMapGenerator::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Root
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(input,
         D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_GENERIC_READ));
 
-    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mNormalMap.Get(),
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentNormalMap().Get(),
         D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 
     // 8,8,1 is defined in Compute Shader
@@ -45,20 +45,22 @@ void NormalMapGenerator::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Root
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(input,
         D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_COMMON));
     
-    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mNormalMap.Get(),
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentNormalMap().Get(),
        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_COMMON));
 
     // renewal done
-    bNormalDirty = false;
+    mNumNormalDirty--;
 }
 
-void NormalMapGenerator::SetNewNormalMap(UINT width, UINT height, CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapGpuHandle)
+void NormalMapGenerator::SetNewNormalMap(UINT width, UINT height,  CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapGpuHandle)
 {
     mWidth = width;
     mHeight = height;
     mHeightMapGpuSrv = pHeightMapGpuHandle;
 
     BuildResources();
+
+    mNumNormalDirty++;
 }
 
 
@@ -71,7 +73,7 @@ void NormalMapGenerator::BuildDescriptors()
     srvDesc.Texture2D.MostDetailedMip = 0;
     srvDesc.Texture2D.MipLevels = 1;
     
-    mD3DDevice->CreateShaderResourceView(mNormalMap.Get(), &srvDesc, mNormalCpuSrv);
+    mD3DDevice->CreateShaderResourceView(GetCurrentNormalMap().Get(), &srvDesc, mNormalCpuSrv);
     
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 
@@ -79,7 +81,7 @@ void NormalMapGenerator::BuildDescriptors()
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     uavDesc.Texture2D.MipSlice = 0;
     
-    mD3DDevice->CreateUnorderedAccessView(mNormalMap.Get(), nullptr, &uavDesc, mNormalCpuUav);
+    mD3DDevice->CreateUnorderedAccessView(GetCurrentNormalMap().Get(), nullptr, &uavDesc, mNormalCpuUav);
 }
 
 void NormalMapGenerator::BuildResources()
@@ -98,11 +100,37 @@ void NormalMapGenerator::BuildResources()
     texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
+    ID3D12Resource* tmpTex = nullptr;
+
+    
+    
+    // TODO : 지금 normalMapGenerator에서 리소스를 하나만 사용중인데 buildResource()에서 resource 생성시에 기존 사용중인 resource를 릴리즈하면서 충돌인것같다. resource 버퍼 만들어볼것.
     ThrowIfFailed(mD3DDevice->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
         &texDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-        IID_PPV_ARGS(&mNormalMap)));
+        IID_PPV_ARGS(&tmpTex)));
+
+    AddNormalMap(tmpTex);
+}
+
+void NormalMapGenerator::AddNormalMap(ID3D12Resource* pNewNormalMap)
+{
+    if(pNewNormalMap == nullptr)
+    {
+        // error
+        MessageBoxA(nullptr,"Texture nullptr","DirectXError",MB_OK | MB_ICONERROR);
+
+        return;
+    }
+    if(mNormalMapBuffer.size()<NormalMapBufferSize)
+    {
+        mNormalMapBuffer.push_back(pNewNormalMap);
+        mCurrentBufferIndex++;
+        return;
+    }
+    mCurrentBufferIndex = (mCurrentBufferIndex+1)%NormalMapBufferSize;
+    mNormalMapBuffer[mCurrentBufferIndex] = pNewNormalMap;
 }

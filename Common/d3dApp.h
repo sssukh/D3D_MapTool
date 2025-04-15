@@ -30,7 +30,7 @@ using namespace DirectX;
 #pragma comment(lib, "D3D12.lib")
 #pragma comment(lib, "dxgi.lib")
 
-
+const UINT Descriptors_Per_Frame =30;
 
 enum class RenderType
 {
@@ -69,6 +69,31 @@ struct RenderItem
 	UINT StartIndexLocation = 0;
 	int BaseVertexLocation = 0;
 	
+};
+
+struct HeightMapBuffer
+{
+	int mMaxHeightMapCount=10;
+	int mCurrentUsingIndex=-1;
+	int numDirty = 0;
+	std::vector<std::unique_ptr<myTexture>> mTextureBuffer;
+
+	HeightMapBuffer()
+	{
+		for(int i=0;i<mMaxHeightMapCount;++i)
+		{
+			mTextureBuffer.push_back(nullptr);
+		}
+	}
+	void UpdateHeightMap(std::unique_ptr<myTexture> pInTex)
+	{
+		// mAvailableIndex쓸일 없으면 이 로컬변수로 대체 
+		int availableIndex = (mCurrentUsingIndex+1)%mMaxHeightMapCount;
+		mTextureBuffer[availableIndex] = std::move(pInTex);
+		mCurrentUsingIndex = (mCurrentUsingIndex+1)%mMaxHeightMapCount;
+		numDirty = 3;
+	}
+	myTexture* GetCurrentUsingHeightmap() const { return mTextureBuffer[mCurrentUsingIndex].get();}
 };
 
 class myRay;
@@ -154,12 +179,14 @@ private:
 
 	void InitImGui();
 
-	void CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT& pOffset, UINT pDescriptorSize);
+	void CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize);
 
 	void BuildPostProcessRootSignature();
 
-	// Create empty resource using heightMap format
-	void CreateEmptyNormalMap(ID3D12Resource* pHeightMap);
+	
+	void UpdateHeightMap(myTexture* pTexture);
+
+
 protected:
 
     static D3DApp* mApp;
@@ -291,8 +318,21 @@ private:
 
 	ID3D12Resource* mNormalMap = nullptr;
 
+	// height map's descriptor heap index for ring buffer
+	HeightMapBuffer mHeightMapBuffer;
+	
 	UINT mMaxSrvCount= 20;
-	UINT mMaxHeightCount = 1;
+	
+	// srv 1개 uav 1개
+	
 	UINT mMaxNormalCount = 2;
+
+	std::wstring mHeightMapDirectory;
+	
+	std::unique_ptr<myTexture> mNewHeightMap = nullptr;
+	
+	bool bIsHeightMapDirty = false;
+
+	UINT mCurrentDescriptorOffset=0;
 };
 

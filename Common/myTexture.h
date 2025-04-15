@@ -30,17 +30,25 @@ class myTexture
 public:
     myTexture(){};
     myTexture(std::string pName, std::wstring pFileName);
-    ~myTexture(){};
+    ~myTexture()
+    {
+        Resource = nullptr;
+        UploadHeap = nullptr;
+        mD3D12DescriptorHeap = nullptr;
+    }
 
 public:
     HRESULT CreateDDSTextureFromFile(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList);
 
     HRESULT CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList);
+    
+    HRESULT CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList, ID3D12CommandQueue* pD3D12CommandQueue, ID3D12CommandAllocator* pD3D12ComAlloc);
 
     HRESULT GetScratchImage(std::wstring pFilename, DirectX::ScratchImage* sImage);
     
     void CreateShaderResourceView(ID3D12Device* pD3D12Device,ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize);
 
+    void Release();
 public:
     // Unique material name for lookup.
     std::string Name;
