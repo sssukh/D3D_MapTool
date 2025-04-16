@@ -89,22 +89,13 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
 
     if(SUCCEEDED(result))
     {
-        // ID3D12Resource* tmpTex = nullptr;
         // resource 받아오기
         result = DirectX::CreateTexture(pD3D12Device,image.GetMetadata(),&Resource);
             
         if(FAILED(result))
             return result;
 
-        // D3D12_RESOURCE_DESC resource_desc = tmpTex->GetDesc();
-        //
-        // pD3D12Device->CreateCommittedResource(
-        // &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        // D3D12_HEAP_FLAG_NONE,
-        // &resource_desc,
-        // D3D12_RESOURCE_STATE_COPY_DEST,
-        // nullptr,
-        // IID_PPV_ARGS(&Resource));
+       
         
         std::vector<D3D12_SUBRESOURCE_DATA> subresources;
         
@@ -117,10 +108,6 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
             return result;
         }
 
-    
-
-
-        
         
         // upload is implemented by application developer. Here's one solution using <d3dx12.h>
         const UINT64 uploadBufferSize = GetRequiredIntermediateSize(Resource.Get(),
@@ -143,28 +130,6 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
             return result;
             // error!
         }
-        //
-        // D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
-        // UINT64 totalBytes;
-        // pD3D12Device->GetCopyableFootprints(&tmpTex->GetDesc(),0,1,0,&footprint,nullptr,nullptr,&totalBytes);
-        //
-        // // i put uploadBufferSize just for now, but i need to change it to exact texture size
-        // void* mappedData;
-        // UploadHeap->Map(0,nullptr,&mappedData);
-        // memcpy(mappedData, tmpTex,uploadBufferSize);
-        //
-        // // for (UINT row = 0; row < footprint.Footprint.Height; row++) {
-        // //     memcpy(
-        // //         (BYTE*)mappedData + footprint.Offset + row * footprint.Footprint.RowPitch,
-        // //         (BYTE*)tmpTex + row * (footprint.Footprint.Width), // 원본 데이터 (픽셀 당 4바이트)
-        // //         footprint.Footprint.Width
-        // //     );
-        // // }
-        // UploadHeap->Unmap(0,nullptr);
-
-        
-
-       
 	
         // Reuse the memory associated with command recording.
         // We can only reset when the associated command lists have finished execution on the GPU.
@@ -175,21 +140,6 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
         // Reusing the command list reuses memory.
         ThrowIfFailed(pD3D12CommandList->Reset(pD3D12ComAlloc,nullptr));
         
-        // pD3D12CommandList->CopyTextureRegion(
-        //     &CD3DX12_TEXTURE_COPY_LOCATION(Resource.Get(),0),
-        //     0,0,0,
-        //     &CD3DX12_TEXTURE_COPY_LOCATION(UploadHeap.Get(),footprint),nullptr);
-        //
-        // pD3D12CommandList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(
-        //     Resource.Get(),
-        //     D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
-
-
-        // 이부분을 나중에 해야한다?
-      
-
-        // 이후 uploadHeap 재사용 또는 해제 가능
-
         
         pD3D12CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(Resource.Get(),
                     D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST));
@@ -200,7 +150,7 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
                     subresources.data());
         
         pD3D12CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(Resource.Get(),
-                    D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+                    D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON));
 
 
         pD3D12CommandList->Close();
