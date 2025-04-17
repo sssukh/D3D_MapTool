@@ -186,7 +186,7 @@ bool D3DApp::Initialize()
 	UINT width = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Width;
 	UINT height = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Height;
 	
-	BuildPlaneGeometry(width,height,width,height);
+	BuildPlaneGeometry(width,height,10,10);
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -1131,11 +1131,9 @@ void D3DApp:: BuildRootSignature()
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsConstantBufferView(2);
-	// 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[4].InitAsDescriptorTable(1,&heightTable,D3D12_SHADER_VISIBILITY_VERTEX);
-	slotRootParameter[5].InitAsDescriptorTable(1,&normalTable,D3D12_SHADER_VISIBILITY_VERTEX);
-	// slotRootParameter[4].InitAsDescriptorTable(1,&heightMapTable,D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[4].InitAsDescriptorTable(1,&heightTable,D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[5].InitAsDescriptorTable(1,&normalTable,D3D12_SHADER_VISIBILITY_ALL);
 
 
 	auto staticSamplers = GetStaticSamplers();
@@ -1233,7 +1231,8 @@ void D3DApp::BuildDescriptorHeaps()
 void D3DApp::BuildShadersAndInputLayout()
 {
 	mShaders["VS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "VS", "vs_5_1");
-	// mShaders["GS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"GS","gs_5_0");
+	mShaders["HS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"HS","hs_5_0");
+	mShaders["DS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"DS","ds_5_0");
 	mShaders["normalCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\NormalMapCS.hlsl",nullptr,"NormalCS","cs_5_0");
 	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
 	
@@ -1260,6 +1259,16 @@ void D3DApp::BuildPSOs()
 		reinterpret_cast<BYTE*>(mShaders["VS"]->GetBufferPointer()), 
 		mShaders["VS"]->GetBufferSize()
 	};
+	opaquePsoDesc.HS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["HS"]->GetBufferPointer()),
+			mShaders["HS"]->GetBufferSize()
+	};
+	opaquePsoDesc.DS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["DS"]->GetBufferPointer()),
+			mShaders["DS"]->GetBufferSize()
+	};
 	opaquePsoDesc.PS = 
 	{ 
 		reinterpret_cast<BYTE*>(mShaders["PS"]->GetBufferPointer()),
@@ -1269,7 +1278,7 @@ void D3DApp::BuildPSOs()
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.SampleMask = UINT_MAX;
-	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
 	opaquePsoDesc.NumRenderTargets = 1;
 	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
@@ -1435,7 +1444,7 @@ void D3DApp::BuildRenderItems()
 	planeRitem->ObjCBIndex = 0;
 	planeRitem->Mat = mMaterials["planeMat"].get();
 	planeRitem->Geo = mGeometries["planeGeo"].get();
-	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
 	planeRitem->IndexCount = planeRitem->Geo->DrawArgs["plane"].IndexCount;
 	planeRitem->StartIndexLocation = planeRitem->Geo->DrawArgs["plane"].StartIndexLocation;
 	planeRitem->BaseVertexLocation = planeRitem->Geo->DrawArgs["plane"].BaseVertexLocation;

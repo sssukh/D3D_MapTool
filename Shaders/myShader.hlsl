@@ -95,9 +95,8 @@ struct VertexIn
 
 struct VertexOut
 {
-	float4 PosH    : SV_POSITION;
-    float3 PosW    : POSITION;
-    float3 NormalW : NORMAL;
+    float3 PosL    : POSITION;
+    float3 NormalL : NORMAL;
 	float2 TexC    : TEXCOORD;
 };
 
@@ -112,24 +111,25 @@ VertexOut VS(VertexIn vin)
 	vin.PosL.y += heightMap.r * 100.0f;
     
     // Transform to world space.
-    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);	
+    // float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);	
 
-    vout.PosW = posW.xyz;
+    vout.PosL = vin.PosL;
 
 	float4 normalMap = gNormalMap.SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
 	vin.NormalL =  float3(normalMap.rgb);
 	
 	// vout.NormalW = mul(normal, (float3x3)gWorld);
     // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
-    vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
-
+    // vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+	vout.NormalL = vin.NormalL;
     // Transform to homogeneous clip space.
-    vout.PosH = mul(posW, gViewProj);
+    // vout.PosH = mul(posW, gViewProj);
 	
 	// Output vertex attributes for interpolation across triangle.
-	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-	vout.TexC = mul(texC, gMatTransform).xy;
-
+	// float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+	// vout.TexC = mul(texC, gMatTransform).xy;
+	
+	vout.TexC = vin.TexC;
 	
 	
 
@@ -147,7 +147,7 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 	PatchTess pt;
 	
 	float3 centerL = 0.25f*(patch[0].PosL + patch[1].PosL + patch[2].PosL + patch[3].PosL);
-	// float3 centerW = mul(float4(centerL, 1.0f), gWorld).xyz;
+	float3 centerW = mul(float4(centerL, 1.0f), gWorld).xyz;
 	
 	float d = distance(centerW, gEyePosW);
 
@@ -155,8 +155,8 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 	// the tessellation is 0 if d >= d1 and 64 if d <= d0.  The interval
 	// [d0, d1] defines the range we tessellate in.
 	
-	const float d0 = 20.0f;
-	const float d1 = 100.0f;
+	const float d0 = 100.0f;
+	const float d1 = 500.0f;
 	float tess = 64.0f*saturate( (d1-d)/(d1-d0) );
 
 	// Uniformly tessellate the patch.
@@ -174,11 +174,13 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 
 struct HullOut
 {
-	float3 PosL : POSITION;
+	float3 PosL    : POSITION;
+	float3 NormalL : NORMAL;
+	float2 TexC    : TEXCOORD;
 };
 
 [domain("quad")]
-[partitioning("fractional_odd")]
+[partitioning("fractional_even")]
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("ConstantHS")]
@@ -190,14 +192,27 @@ HullOut HS(InputPatch<VertexOut, 4> p,
 	HullOut hout;
 	
 	hout.PosL = p[i].PosL;
+	hout.NormalL = p[i].NormalL;
+	hout.TexC = p[i].TexC;
 	
 	return hout;
 }
 
 struct DomainOut
 {
-	float4 PosH : POSITION;
+	float4 PosH    : SV_POSITION;
+	float3 PosW    : POSITION;
+	float3 NormalW : NORMAL;
+	float2 TexC    : TEXCOORD;
 };
+
+// normal과 uv 값을 잘 해서 tesselation 된 patch에 적절한 값을 전달해야할듯하다.
+// 그리고 pso에 IA단계 입력값 변경해주기.
+
+// 버텍스 피킹까지 적용한다고 한다면 
+// 1. 텍스처를 바로 DS에서 읽어서 높이 적용하기 or 2. 일단 테셀레이션 전의 베텍스들을 보간해서 높이 및 노말값 설정하기
+// 1은 피킹할 경우 바로 텍스처에 적용.
+// 2는 버텍스의 높이를 조정하고 해당 높이를 보간해서 텍스처에 적용.
 
 // The domain shader is called for every vertex created by the tessellator.  
 // It is like the vertex shader after tessellation.
@@ -209,50 +224,37 @@ DomainOut DS(PatchTess patchTess,
 	DomainOut dout;
 	
 	// Bilinear interpolation.
+	// Get position
 	float3 v1 = lerp(quad[0].PosL, quad[1].PosL, uv.x); 
 	float3 v2 = lerp(quad[2].PosL, quad[3].PosL, uv.x); 
-	float3 p  = lerp(v1, v2, uv.y); 
+	float3 p  = lerp(v1, v2, uv.y);
+ 
+	// Bilinear interpolation.
+	// Get uv value
+	float2 t1 = lerp(quad[0].TexC,quad[1].TexC, uv.x);
+	float2 t2 = lerp(quad[2].TexC,quad[3].TexC, uv.x);
+	float2 t = lerp(t1,t2,uv.y);
 	
-	// Displacement mapping
-	p.y = 0.3f*( p.z*sin(p.x) + p.x*cos(p.z) );
-	
-	// float4 posW = mul(float4(p, 1.0f), gWorld);
-	// dout.PosH = mul(posW, gViewProj);
-	dout.PosH = p;
+	float4 heightMap = gHeightMap.SampleLevel(gsamAnisotropicWrap, t, 0);
+	p.y = p.y + heightMap.r * 100;
+
+	float4 normalMap = gNormalMap.SampleLevel(gsamAnisotropicWrap, t, 0);
+	float3 normal = float3(normalMap.rgb);
+
+	float4 texC = mul(float4(t, 0.0f, 1.0f), gTexTransform);
+
+	float4 posW = mul(float4(p, 1.0f), gWorld);
+	dout.PosH = mul(posW, gViewProj);
+	dout.PosW = (float3)posW;
+	dout.NormalW = mul(normal, (float3x3)gWorld);
+	dout.TexC = texC.xy;
 
 	return dout;
 }
 
-struct GeoOut
-{
-	float4 PosH : SV_POSITION;
-};
 
-[maxvertexcount(8)]
-void GS(triangle DomainOut gin[3], 
-		inout TriangleStream<GeoOut> triStream)
-{	
-	GeoOut gout[3];
-	for(int i=0;i<3;++i)
-	{
-		float3 curPos = (gin[i].PosH.x,0,gin[i].PosH.z);
-		float3 curToMouse = curPos - gMouseRay;
-		float cursurToVerLen = length(curToMouse);
-		
-		if(cursurToVerLen<10)
-		{
-			gin[i].PosH.y= gin[i].PosH.y + 150;
-		}
-		
-		gout[i].PosH = gin[i].PosH;
-	}
-	triStream.Append(gout[0]);
-	triStream.Append(gout[1]);
-	triStream.Append(gout[2]);
-	
-}
 
-float4 PS(VertexOut pin) : SV_Target
+float4 PS(DomainOut pin) : SV_Target
 {
     float4 diffuseAlbedo = gDiffuseMap[gTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
 	
