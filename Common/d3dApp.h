@@ -183,10 +183,11 @@ private:
 
 	void BuildPostProcessRootSignature();
 
+	void BuildRayRootSignature();
 	
 	void UpdateHeightMap(myTexture* pTexture);
 
-
+	RenderItem* GetPlane() const;
 protected:
 
     static D3DApp* mApp;
@@ -252,9 +253,11 @@ private:
 
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 	
-	// RootSignature for Compute Shader
+	// RootSignature for normal Compute Shader
 	ComPtr<ID3D12RootSignature> mPostProcessRootSignature = nullptr;
 
+	// RootSignature for Ray Compute Shader
+	ComPtr<ID3D12RootSignature> mRayRootSignature = nullptr;
 	
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 	// Use this count instead of indivisual input
@@ -334,5 +337,6 @@ private:
 	bool bIsHeightMapDirty = false;
 
 	UINT mCurrentDescriptorOffset=0;
+
 };
 

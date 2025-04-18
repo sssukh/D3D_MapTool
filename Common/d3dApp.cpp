@@ -1131,9 +1131,9 @@ void D3DApp:: BuildRootSignature()
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsConstantBufferView(2);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[4].InitAsDescriptorTable(1,&heightTable,D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[5].InitAsDescriptorTable(1,&normalTable,D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[4].InitAsDescriptorTable(1,&heightTable,D3D12_SHADER_VISIBILITY_DOMAIN);
+	slotRootParameter[5].InitAsDescriptorTable(1,&normalTable,D3D12_SHADER_VISIBILITY_DOMAIN);
 
 
 	auto staticSamplers = GetStaticSamplers();
@@ -1444,7 +1444,7 @@ void D3DApp::BuildRenderItems()
 	planeRitem->ObjCBIndex = 0;
 	planeRitem->Mat = mMaterials["planeMat"].get();
 	planeRitem->Geo = mGeometries["planeGeo"].get();
-	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
 	planeRitem->IndexCount = planeRitem->Geo->DrawArgs["plane"].IndexCount;
 	planeRitem->StartIndexLocation = planeRitem->Geo->DrawArgs["plane"].StartIndexLocation;
 	planeRitem->BaseVertexLocation = planeRitem->Geo->DrawArgs["plane"].BaseVertexLocation;
@@ -1621,6 +1621,44 @@ void D3DApp::BuildPostProcessRootSignature()
 		serializedRootSig->GetBufferPointer(),
 		serializedRootSig->GetBufferSize(),
 		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
+
+
+	
+}
+
+void D3DApp::BuildRayRootSignature()
+{
+	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+
+	// vertex shader
+	slotRootParameter[0].InitAsShaderResourceView(0);
+	// Index shader
+	slotRootParameter[1].InitAsShaderResourceView(1);
+	// ray 정보
+	slotRootParameter[2].InitAsConstantBufferView(0);
+	// 결과
+	slotRootParameter[3].InitAsUnorderedAccessView(0);
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4,slotRootParameter
+		,0,nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc,D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(),errorBlob.GetAddressOf());
+
+	if(errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mRayRootSignature.GetAddressOf())));
 }
 
 void D3DApp::UpdateHeightMap(myTexture* pTexture)
@@ -1650,6 +1688,11 @@ void D3DApp::UpdateHeightMap(myTexture* pTexture)
 
 		mHeightMapBuffer.numDirty--;
 	}
+}
+
+RenderItem* D3DApp::GetPlane() const
+{
+	return mAllRitems[0].get();
 }
 
 

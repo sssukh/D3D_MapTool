@@ -105,48 +105,27 @@ struct VertexOut
 VertexOut VS(VertexIn vin)
 {
 	VertexOut vout = (VertexOut)0.0f;
-	
-	// test
-	float4 heightMap = gHeightMap.SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
-	vin.PosL.y += heightMap.r * 100.0f;
-    
-    // Transform to world space.
-    // float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);	
 
     vout.PosL = vin.PosL;
-
-	float4 normalMap = gNormalMap.SampleLevel(gsamAnisotropicWrap, vin.TexC, 0);
-	vin.NormalL =  float3(normalMap.rgb);
 	
-	// vout.NormalW = mul(normal, (float3x3)gWorld);
-    // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
-    // vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
 	vout.NormalL = vin.NormalL;
-    // Transform to homogeneous clip space.
-    // vout.PosH = mul(posW, gViewProj);
-	
-	// Output vertex attributes for interpolation across triangle.
-	// float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-	// vout.TexC = mul(texC, gMatTransform).xy;
 	
 	vout.TexC = vin.TexC;
 	
-	
-
     return vout;
 }
 
 struct PatchTess
 {
-	float EdgeTess[4] : SV_TessFactor;
-	float InsideTess[2] : SV_InsideTessFactor;
+	float EdgeTess[3] : SV_TessFactor;
+	float InsideTess : SV_InsideTessFactor;
 };
 
-PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_PrimitiveID)
+PatchTess ConstantHS(InputPatch<VertexOut, 3> patch, uint patchID : SV_PrimitiveID)
 {
 	PatchTess pt;
 	
-	float3 centerL = 0.25f*(patch[0].PosL + patch[1].PosL + patch[2].PosL + patch[3].PosL);
+	float3 centerL = 0.33f*(patch[0].PosL + patch[1].PosL + patch[2].PosL);
 	float3 centerW = mul(float4(centerL, 1.0f), gWorld).xyz;
 	
 	float d = distance(centerW, gEyePosW);
@@ -164,10 +143,11 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 	pt.EdgeTess[0] = tess;
 	pt.EdgeTess[1] = tess;
 	pt.EdgeTess[2] = tess;
-	pt.EdgeTess[3] = tess;
+	// pt.EdgeTess[3] = tess;
 	
-	pt.InsideTess[0] = tess;
-	pt.InsideTess[1] = tess;
+	pt.InsideTess = tess;
+	// pt.InsideTess[0] = tess;
+	// pt.InsideTess[1] = tess;
 	
 	return pt;
 }
@@ -179,13 +159,13 @@ struct HullOut
 	float2 TexC    : TEXCOORD;
 };
 
-[domain("quad")]
+[domain("tri")]
 [partitioning("fractional_even")]
 [outputtopology("triangle_cw")]
-[outputcontrolpoints(4)]
+[outputcontrolpoints(3)]
 [patchconstantfunc("ConstantHS")]
 [maxtessfactor(64.0f)]
-HullOut HS(InputPatch<VertexOut, 4> p, 
+HullOut HS(InputPatch<VertexOut, 3> p, 
 		   uint i : SV_OutputControlPointID,
 		   uint patchId : SV_PrimitiveID)
 {
@@ -206,37 +186,44 @@ struct DomainOut
 	float2 TexC    : TEXCOORD;
 };
 
-// normal과 uv 값을 잘 해서 tesselation 된 patch에 적절한 값을 전달해야할듯하다.
-// 그리고 pso에 IA단계 입력값 변경해주기.
-
-// 버텍스 피킹까지 적용한다고 한다면 
-// 1. 텍스처를 바로 DS에서 읽어서 높이 적용하기 or 2. 일단 테셀레이션 전의 베텍스들을 보간해서 높이 및 노말값 설정하기
-// 1은 피킹할 경우 바로 텍스처에 적용.
-// 2는 버텍스의 높이를 조정하고 해당 높이를 보간해서 텍스처에 적용.
 
 // The domain shader is called for every vertex created by the tessellator.  
 // It is like the vertex shader after tessellation.
-[domain("quad")]
+[domain("tri")]
 DomainOut DS(PatchTess patchTess, 
-			 float2 uv : SV_DomainLocation, 
-			 const OutputPatch<HullOut, 4> quad)
+			 float3 baryCoords : SV_DomainLocation, 
+			 const OutputPatch<HullOut, 3> tri)
 {
 	DomainOut dout;
 	
+	// For quad patch
 	// Bilinear interpolation.
 	// Get position
-	float3 v1 = lerp(quad[0].PosL, quad[1].PosL, uv.x); 
-	float3 v2 = lerp(quad[2].PosL, quad[3].PosL, uv.x); 
-	float3 p  = lerp(v1, v2, uv.y);
- 
+	// float3 v1 = lerp(quad[0].PosL, quad[1].PosL, uv.x); 
+	// float3 v2 = lerp(quad[2].PosL, quad[3].PosL, uv.x); 
+	// float3 p  = lerp(v1, v2, uv.y);
+ 		
+	// For quad patch
 	// Bilinear interpolation.
 	// Get uv value
-	float2 t1 = lerp(quad[0].TexC,quad[1].TexC, uv.x);
-	float2 t2 = lerp(quad[2].TexC,quad[3].TexC, uv.x);
-	float2 t = lerp(t1,t2,uv.y);
+	// float2 t1 = lerp(quad[0].TexC,quad[1].TexC, uv.x);
+	// float2 t2 = lerp(quad[2].TexC,quad[3].TexC, uv.x);
+	// float2 t = lerp(t1,t2,uv.y);
+
+	// For tri patch
+	// barycentric interpolation
+	float3 p = tri[0].PosL * baryCoords.x
+				+ tri[1].PosL * baryCoords.y
+				+ tri[2].PosL * baryCoords.z;
 	
-	float4 heightMap = gHeightMap.SampleLevel(gsamAnisotropicWrap, t, 0);
-	p.y = p.y + heightMap.r * 100;
+	// For tri patch
+	// barycentric interpolation
+	float2 t = tri[0].TexC * baryCoords.x
+				+ tri[1].TexC * baryCoords.y
+				+ tri[2].TexC * baryCoords.z;
+	
+	float height = gHeightMap.SampleLevel(gsamAnisotropicWrap, t, 0).r * 2.0f - 1.0f;
+	p.y = p.y + height * 100;
 
 	float4 normalMap = gNormalMap.SampleLevel(gsamAnisotropicWrap, t, 0);
 	float3 normal = float3(normalMap.rgb);
