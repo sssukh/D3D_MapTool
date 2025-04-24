@@ -153,7 +153,7 @@ bool D3DApp::Initialize()
 		return false;
 
 	// mouse ray 
-	mMouseRay = new myRay();
+	mMouseRay = new myRay(md3dDevice.Get());
 	
     // Do the initial resize code.
     OnResize();
@@ -1069,6 +1069,7 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat3(&mMousePosOnPlane,mMouseRay->PlaneLineIntersectVect(point,normal));
 	
 	mMainPassCB.MouseProjPos = mMousePosOnPlane;
+	
 	// Main pass stored in index 2
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);

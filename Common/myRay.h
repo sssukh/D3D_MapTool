@@ -1,23 +1,27 @@
 ﻿#pragma once
 #include <d3d12.h>
 #include <DirectXMath.h>
+#include <vector>
+#include <wrl/client.h>
 
 #include "MathHelper.h"
 
 using namespace DirectX;
 
+struct PickingResult
+{
+    bool Hit;
+    XMFLOAT3 IntersectPos;
+    float Distance;
+};
+
 class myRay
 {
 public:
-    myRay() {};
+    myRay(ID3D12Device* pDevice);
     ~myRay() {};
 
 public:
-    // inline void SetRayOrigin(float x, float y, float z);
-    // inline void SetRayOrigin(const XMFLOAT3& pNewOrigin);
-    //
-    // inline void SetRayDirection(float x, float y ,float z);
-    // inline void SetRayDirection(const XMFLOAT3& pNewDir); 
 
     XMFLOAT3 GetRayOrigin() const { return mRayOrigin;}
 
@@ -31,11 +35,20 @@ public:
 
     void SetViewport(const D3D12_VIEWPORT& pViewport) {mD3DViewport = pViewport;}
 
+    void BuildBuffers();
+
     // Screen space -> clip space -> view space -> world space
     // Update mRayOrigin & mRayDir
     void UpdateRay();
     
+    // dummy before CS
     XMVECTOR PlaneLineIntersectVect(XMVECTOR pPoint, XMVECTOR pNormal);
+
+    
+    void BuildRootSignature();
+
+    // dispatch
+    void GetIntersectionPos();
     
 private:
     XMFLOAT3 mRayOrigin = XMFLOAT3(0.0f,0.0f,0.0f);
@@ -55,4 +68,17 @@ private:
     
     // world matrix
     XMFLOAT4X4 mD3DWorldMatrix = MathHelper::Identity4x4();
+    
+    std::vector<PickingResult> mRayPickingResults;
+
+    UINT mPickingResultNum = 2;
+
+    UINT64 bufferByteSize;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> mOutputBuffer;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> mReadBackBuffer;
+    
+    Microsoft::WRL::ComPtr<ID3D12Device> mD3dDevice=nullptr;
+
 };

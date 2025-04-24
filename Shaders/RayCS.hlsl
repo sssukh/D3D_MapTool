@@ -1,3 +1,43 @@
+struct Vertex
+{
+	float3 Pos;
+	float3 Normal;
+	float3 Tex;
+}
+
+struct PickingResult
+{
+	bool Hit;
+    // uint TriangleID;
+    // float2 BaryCoords = bary;
+	float3 IntersectPos;
+    float Distance;
+}
+
+// 스트럭처드 버퍼
+// 광선 충돌 검출용
+StructuredBuffer<Vertex> gVertexBuffer;
+StructuredBuffer<uint> gIndexBuffer;
+
+// 광선
+cbuffer Ray : register(b0)
+{
+    float3 gRayOrigin;
+    float3 gRayDir;
+}
+cbuffer PlaneInfo : register(b1)
+{
+    uint gWidth;
+    uint gHeight;
+}
+
+Texture2D gHeightMap           : register(t0);
+
+
+// 충돌 결과
+RWStructuredBuffer<PickingResult> gPickingResult;
+
+
 // 광선-삼각형 교차 검사
 bool RayIntersectTriangle(
     float3 rayOrigin, float3 rayDir,
@@ -23,24 +63,24 @@ bool RayIntersectTriangle(
     
     t = dot(e2, q) * invDet;
     return t > 0;
+
+	// bary.x for v1, bary.y for v2, (1 - bary.x - bary.y) for v0
 }
 
-// 스트럭처드 버퍼
-// 광선 충돌 검출용
-StructuredBuffer<Vertex> gVertexBuffer;
-StructuredBuffer<uint> gIndexBuffer;
-
-// 광선
-cbuffer Ray : register(b0)
+float ApplyDisplacement(float3 VertexPos)
 {
-    float3 gRayOrigin;
-    float3 gRayDir;
+	int u = VertexPos.x + gWidth*0.5f;
+	int v = VertexPos.z + gHeight * 0.5f;
+	int2 uv = int2(u,v);
+	float sampledHeightMap = gHeightMap[uv].r * 100.0f
+
+	return float3(0.0f,sampleHeightMap,0.0f);
 }
 
-// 충돌 결과
-RWStructuredBuffer<PickingResult> gPickingResult;
 
-[numthreads(64, 1, 1)]
+
+
+[numthreads(1, 1, 1)]
 void CS_Picking(uint3 tid : SV_DispatchThreadID)
 {
     
@@ -51,12 +91,17 @@ void CS_Picking(uint3 tid : SV_DispatchThreadID)
     // 광선-메시 교차 검사
     for (uint i = 0; i < gNumTriangles; ++i)
     {
-        uint3 tri = indices[i].xyz;
-        float3 v0 = vertices[tri.x].WorldPos;
-        float3 v1 = vertices[tri.y].WorldPos;
-        float3 v2 = vertices[tri.z].WorldPos;
+        // uint3 tri = indices[i].xyz;
+		uint idx0 = indices[3*i];
+		uint idx1 = indices[3*i+1];
+		uint idx2 = indices[3*i+2];
+		
+        float3 v0 = vertices[idx0].Pos;
+        float3 v1 = vertices[idx1].Pos;
+        float3 v2 = vertices[idx2].Pos;
         
         // 높이맵 변형 적용 (Domain Shader와 동일 로직)
+		// 높이맵 텍스처 필요
         v0 += ApplyDisplacement(v0);
         v1 += ApplyDisplacement(v1);
         v2 += ApplyDisplacement(v2);
@@ -68,8 +113,9 @@ void CS_Picking(uint3 tid : SV_DispatchThreadID)
             if (t < gPickingResult.Distance)
             {
                 gPickingResult.Hit = true;
-                gPickingResult.TriangleID = i;
-                gPickingResult.BaryCoords = bary;
+                // gPickingResult.TriangleID = i;
+                // gPickingResult.BaryCoords = bary;
+				gPickingResult.IntersectPos = (1-bary.x-bary,y)*v0 + bary.x*v1 + bary.y*v2;
                 gPickingResult.Distance = t;
             }
         }

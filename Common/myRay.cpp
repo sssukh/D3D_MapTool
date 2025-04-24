@@ -1,24 +1,31 @@
 ﻿#include "myRay.h"
 
-// void myRay::SetRayOrigin(float x, float y, float z)
-// {
-//     mRayOrigin = XMFLOAT3(x,y,z);
-// }
-//
-// void myRay::SetRayOrigin(const XMFLOAT3& pNewOrigin)
-// {
-//     mRayOrigin = pNewOrigin;
-// }
-//
-// void myRay::SetRayDirection(float x, float y, float z)
-// {
-//     mRayDir = XMFLOAT3(x,y,z);
-// }
-//
-// void myRay::SetRayDirection(const XMFLOAT3& pNewDir)
-// {
-//     mRayDir = pNewDir;
-// }
+#include "d3dUtil.h"
+
+myRay::myRay(ID3D12Device* pDevice)
+{
+    mD3dDevice = pDevice;
+    bufferByteSize = mPickingResultNum * sizeof(PickingResult);
+}
+
+void myRay::BuildBuffers()
+{
+    ThrowIfFailed(mD3dDevice->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Buffer(bufferByteSize,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nullptr,
+        IID_PPV_ARGS(&mOutputBuffer)));
+
+    ThrowIfFailed(mD3dDevice->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Buffer(bufferByteSize),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        nullptr,
+        IID_PPV_ARGS(&mReadBackBuffer)));
+}
 
 void myRay::UpdateRay()
 {
@@ -47,6 +54,9 @@ void myRay::UpdateRay()
     XMStoreFloat3(&mRayOrigin,nearPoint);
 }
 
+
+
+
 void myRay::SetMatrix(XMMATRIX pViewMat, XMMATRIX pProjMat)
 {
     XMStoreFloat4x4(&mD3DViewMatrix , pViewMat);
@@ -62,4 +72,29 @@ XMVECTOR myRay::PlaneLineIntersectVect(XMVECTOR pPoint, XMVECTOR pNormal)
     XMVECTOR RayDest = XMVectorMultiplyAdd(XMLoadFloat3(&mRayDir),XMVectorSet(10.0f,10.0f,10.0f,10.0f),XMLoadFloat3(&mRayOrigin));
     
     return XMPlaneIntersectLine(p,XMLoadFloat3(&mRayOrigin),RayDest);
+}
+
+void myRay::BuildRootSignature()
+{
+    CD3DX12_DESCRIPTOR_RANGE srvTable;
+    srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    CD3DX12_ROOT_PARAMETER slotRootParameter[6];
+    // height Map srv
+    slotRootParameter[0].InitAsDescriptorTable(1,&srvTable);
+    // vertex buffer
+    slotRootParameter[1].InitAsShaderResourceView(0);
+    // index buffer
+    slotRootParameter[2].InitAsShaderResourceView(1);
+    // ray info
+    slotRootParameter[3].InitAsConstantBufferView(0);
+    // plane info
+    slotRootParameter[4].InitAsConstantBufferView(1);
+    // uav
+    slotRootParameter[5].InitAsUnorderedAccessView(0);
+
+    
+}
+
+void myRay::GetIntersectionPos()
+{
 }
