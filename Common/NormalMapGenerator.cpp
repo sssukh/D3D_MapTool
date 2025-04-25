@@ -104,7 +104,7 @@ void NormalMapGenerator::BuildResources()
 
     
     
-    // TODO : 지금 normalMapGenerator에서 리소스를 하나만 사용중인데 buildResource()에서 resource 생성시에 기존 사용중인 resource를 릴리즈하면서 충돌인것같다. resource 버퍼 만들어볼것.
+    
     ThrowIfFailed(mD3DDevice->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,

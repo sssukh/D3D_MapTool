@@ -188,6 +188,8 @@ private:
 	void UpdateHeightMap(myTexture* pTexture);
 
 	RenderItem* GetPlane() const;
+
+	INT GetCurrentHeightMapOffset() const { return mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount + mMaxNormalCount + mHeightMapBuffer.mCurrentUsingIndex;}
 protected:
 
     static D3DApp* mApp;

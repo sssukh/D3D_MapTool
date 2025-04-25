@@ -4,8 +4,11 @@
 #include <vector>
 #include <wrl/client.h>
 
+#include "d3dx12.h"
 #include "MathHelper.h"
+#include "myTexture.h"
 
+struct RenderItem;
 using namespace DirectX;
 
 struct PickingResult
@@ -49,7 +52,17 @@ public:
 
     // dispatch
     void GetIntersectionPos();
-    
+
+    void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv);
+
+    void Execute(
+        ID3D12GraphicsCommandList* pCmdList,
+        ID3D12RootSignature* pRootSig,
+        ID3D12PipelineState* pNormalMappingPso,
+        ID3D12Resource* pHeightMap,
+        RenderItem* pPlane);
+
+    void BuildIntersectPso();
 private:
     XMFLOAT3 mRayOrigin = XMFLOAT3(0.0f,0.0f,0.0f);
 
@@ -75,10 +88,18 @@ private:
 
     UINT64 bufferByteSize;
 
-    Microsoft::WRL::ComPtr<ID3D12Resource> mOutputBuffer;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mOutputBuffer = nullptr;
 
-    Microsoft::WRL::ComPtr<ID3D12Resource> mReadBackBuffer;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mReadBackBuffer = nullptr;
     
     Microsoft::WRL::ComPtr<ID3D12Device> mD3dDevice=nullptr;
 
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRayRootSignature = nullptr;
+
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mHeightMapGpuSrv;
+
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mRayIntersectPipelineState = nullptr;
+
+    // Initializing needed
+    Microsoft::WRL::ComPtr<ID3DBlob> mRayIntersectShader = nullptr;
 };

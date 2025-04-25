@@ -116,6 +116,7 @@ int D3DApp::Run()
 					mHeightMapBuffer.UpdateHeightMap(std::move(mNewHeightMap));
 					// UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
 
+					// TODO : Change plane's vertex and index buffer depends on User's setting
 					// BuildPlaneGeometry(heightResource.Width,heightResource.Height,heightResource.Width,heightResource.Height);
 				}
 				
@@ -426,14 +427,11 @@ void D3DApp::Draw(const GameTimer& gt)
 	// bind srv Textures
 	CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	mCommandList->SetGraphicsRootDescriptorTable(3, tex);
-
-
-	// mCommandList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get(),
-	// 	D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+	
 	
 	// bind height map
 	CD3DX12_GPU_DESCRIPTOR_HANDLE heightTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	INT heightOffset = mHeightMapBuffer.GetCurrentUsingHeightmap()->mHandleOffset;
+	INT heightOffset = GetCurrentHeightMapOffset();
 	heightTex.Offset(heightOffset,mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(4,heightTex);
 
@@ -1235,6 +1233,8 @@ void D3DApp::BuildShadersAndInputLayout()
 	mShaders["HS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"HS","hs_5_0");
 	mShaders["DS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"DS","ds_5_0");
 	mShaders["normalCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\NormalMapCS.hlsl",nullptr,"NormalCS","cs_5_0");
+	mShaders["rayIntersectCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\RayIntersectCS.hlsl",nullptr,"IntersectCS","cs_5_0");
+
 	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
 	
 	mInputLayout =
@@ -1667,7 +1667,7 @@ void D3DApp::UpdateHeightMap(myTexture* pTexture)
 	if(mHeightMapBuffer.numDirty>0)
 	{
 		// ring buffer index
-		INT heightMapOffset = mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount + mMaxNormalCount + mHeightMapBuffer.mCurrentUsingIndex;
+		INT heightMapOffset = GetCurrentHeightMapOffset();
 
 		// create srv for new height map
 		CreateShaderResourceView(pTexture,mSrvDescriptorHeap.Get(),heightMapOffset,mCbvSrvUavDescriptorSize);
@@ -1697,31 +1697,7 @@ RenderItem* D3DApp::GetPlane() const
 }
 
 
-// void D3DApp::CreateEmptyNormalMap(ID3D12Resource* pHeightMap)
-// {
-// 	D3D12_RESOURCE_DESC normalDesc;
-// 	ZeroMemory(&normalDesc, sizeof(D3D12_RESOURCE_DESC));
-//
-// 	normalDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-// 	normalDesc.Alignment = 0;
-// 	normalDesc.Width = pHeightMap->GetDesc().Width;
-// 	normalDesc.Height = pHeightMap->GetDesc().Height;
-// 	normalDesc.DepthOrArraySize = 1;
-// 	normalDesc.MipLevels = 1;
-// 	normalDesc.Format = pHeightMap->GetDesc().Format;
-// 	normalDesc.SampleDesc.Count = 1;
-// 	normalDesc.SampleDesc.Quality = 0;
-// 	normalDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-// 	normalDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-//
-// 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-// 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-// 		D3D12_HEAP_FLAG_NONE,
-// 		&normalDesc,
-// 		D3D12_RESOURCE_STATE_COMMON,
-// 		nullptr,
-// 		IID_PPV_ARGS(&mNormalMap)));
-// }
+
 
 
 
