@@ -38,9 +38,10 @@ D3DApp::D3DApp(HINSTANCE hInstance)
 
 D3DApp::~D3DApp()
 {
-	mImGui->ReleaseImGui();
+	
 	if(md3dDevice != nullptr)
 		FlushCommandQueue();
+	mImGui->ReleaseImGui();
 }
 
 HINSTANCE D3DApp::AppInst()const
@@ -104,6 +105,7 @@ int D3DApp::Run()
 				
 				Update(mTimer);
 
+				
 				if(mImGui->DrawTextureOpenWindow(mHeightMapDirectory))
 				{
 					mNewHeightMap = std::make_unique<myTexture>("heightTex",mHeightMapDirectory);
@@ -193,15 +195,10 @@ bool D3DApp::Initialize()
 	BuildFrameResources();
 	BuildPSOs();
 
-	
-
-	// Init normal map generator
-	// need to initialized before load Textures and build descriptor heaps
-	// it need to be set after heignt map set and descriptor heap builded. 
+	// Initialize mMouseRay
+	InitRay();
 	
 	
-	// mNormalMapGenerator = new NormalMapGenerator(md3dDevice.Get(),heightTex.Width,heightTex.Height,heightTex.Format,
-	// 	hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize)); 
 	
 	
 	// Execute the initialization commands.
@@ -369,6 +366,12 @@ void D3DApp::Update(const GameTimer& gt)
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
 	UpdateMainPassCB(gt);
+
+	// update plane width, height in RayCB for CS
+	D3D12_RESOURCE_DESC tmpDesc = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc();
+	UINT tmpVertexByteSize = GetPlane()->Geo->VertexBufferByteSize;
+	UINT tmpVertexByteStride = GetPlane()->Geo->VertexByteStride;
+	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,tmpVertexByteSize/tmpVertexByteStride);
 	
 	// 지금 사용하는 heightMap으로 업데이트
 	UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
@@ -1061,6 +1064,11 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 
 	mMouseRay->UpdateRay();
 
+	{
+		CalcMouseRay();
+		mMousePosOnPlane = mMouseRay->GetIntersectionPos();
+	}
+	
 	XMVECTOR point = XMVectorZero();
 	XMVECTOR normal = XMLoadFloat3(&XMFLOAT3(0.0f,1.0f,0.0f));
 
@@ -1694,6 +1702,40 @@ void D3DApp::UpdateHeightMap(myTexture* pTexture)
 RenderItem* D3DApp::GetPlane() const
 {
 	return mAllRitems[0].get();
+}
+
+void D3DApp::InitRay()
+{
+	INT texOffset = GetCurrentHeightMapOffset();
+	CD3DX12_GPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize);
+	
+	mMouseRay->SetNewHeightMap(hDescriptor);
+
+	mMouseRay->SetIntersectShader(mShaders["rayIntersectCS"].Get());
+
+	mMouseRay->BuildIntersectPso();
+}
+
+void D3DApp::CalcMouseRay()
+{
+	ThrowIfFailed(mDirectCmdListAlloc->Reset());
+
+	// InitRay에서 RayPSO 초기화됨
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(),mMouseRay->GetRayIntersectPSO() ));
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = {mSrvDescriptorHeap.Get()};
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps),descriptorHeaps);
+	
+	// Dispatch
+	mMouseRay->Execute(mCommandList.Get(),mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get(),GetPlane());
+
+	ThrowIfFailed(mCommandList->Close());
+
+	ID3D12CommandList* cmdsLists[] = {mCommandList.Get()};
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists),cmdsLists);
+
+	FlushCommandQueue();
 }
 
 

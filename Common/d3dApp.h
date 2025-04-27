@@ -94,6 +94,8 @@ struct HeightMapBuffer
 		numDirty = 3;
 	}
 	myTexture* GetCurrentUsingHeightmap() const { return mTextureBuffer[mCurrentUsingIndex].get();}
+
+	
 };
 
 class myRay;
@@ -190,6 +192,10 @@ private:
 	RenderItem* GetPlane() const;
 
 	INT GetCurrentHeightMapOffset() const { return mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount + mMaxNormalCount + mHeightMapBuffer.mCurrentUsingIndex;}
+
+	void InitRay();
+
+	void CalcMouseRay();
 protected:
 
     static D3DApp* mApp;

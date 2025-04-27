@@ -3,7 +3,7 @@ struct Vertex
 	float3 Pos;
 	float3 Normal;
 	float3 Tex;
-}
+};
 
 struct PickingResult
 {
@@ -12,7 +12,7 @@ struct PickingResult
     // float2 BaryCoords = bary;
 	float3 IntersectPos;
     float Distance;
-}
+};
 
 // 스트럭처드 버퍼
 // 광선 충돌 검출용
@@ -24,12 +24,14 @@ cbuffer Ray : register(b0)
 {
     float3 gRayOrigin;
     float3 gRayDir;
-}
+};
+
 cbuffer PlaneInfo : register(b1)
 {
     uint gWidth;
     uint gHeight;
-}
+	uint gNumTriangles;
+};
 
 Texture2D gHeightMap           : register(t0);
 
@@ -72,16 +74,16 @@ float ApplyDisplacement(float3 VertexPos)
 	int u = VertexPos.x + gWidth*0.5f;
 	int v = VertexPos.z + gHeight * 0.5f;
 	int2 uv = int2(u,v);
-	float sampledHeightMap = gHeightMap[uv].r * 100.0f
+	float sampledHeightMap = gHeightMap[uv].r * 100.0f;
 
-	return float3(0.0f,sampleHeightMap,0.0f);
+	return float3(0.0f,sampledHeightMap,0.0f);
 }
 
 
 
 
 [numthreads(1, 1, 1)]
-void CS_Picking(uint3 tid : SV_DispatchThreadID)
+void IntersectCS(uint3 tid : SV_DispatchThreadID)
 {
     
     // 폄면 원본 메시 데이터 접근
@@ -107,16 +109,16 @@ void CS_Picking(uint3 tid : SV_DispatchThreadID)
         v2 += ApplyDisplacement(v2);
         
         float t; float2 bary;
-        if (RayIntersectTriangle(ray.Origin, ray.Dir, v0, v1, v2, t, bary))
+        if (RayIntersectTriangle(gRayOrigin, gRayDir, v0, v1, v2, t, bary))
         {
             // 가장 가까운 교차점 저장
-            if (t < gPickingResult.Distance)
+            if (t < gPickingResult[0].Distance)
             {
-                gPickingResult.Hit = true;
+                gPickingResult[0].Hit = true;
                 // gPickingResult.TriangleID = i;
                 // gPickingResult.BaryCoords = bary;
-				gPickingResult.IntersectPos = (1-bary.x-bary,y)*v0 + bary.x*v1 + bary.y*v2;
-                gPickingResult.Distance = t;
+				gPickingResult[0].IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
+                gPickingResult[0].Distance = t;
             }
         }
     }

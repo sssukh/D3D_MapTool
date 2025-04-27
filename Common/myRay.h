@@ -7,6 +7,7 @@
 #include "d3dx12.h"
 #include "MathHelper.h"
 #include "myTexture.h"
+#include "UploadBuffer.h"
 
 struct RenderItem;
 using namespace DirectX;
@@ -18,11 +19,24 @@ struct PickingResult
     float Distance;
 };
 
+struct Ray 
+{
+    XMFLOAT3 gRayOrigin;
+    XMFLOAT3 gRayDir;
+};
+
+struct PlaneInfo
+{
+    UINT Width;
+    UINT Height;
+    UINT NumTriangles;
+};
+
 class myRay
 {
 public:
     myRay(ID3D12Device* pDevice);
-    ~myRay() {};
+    ~myRay(); 
 
 public:
 
@@ -38,8 +52,6 @@ public:
 
     void SetViewport(const D3D12_VIEWPORT& pViewport) {mD3DViewport = pViewport;}
 
-    void BuildBuffers();
-
     // Screen space -> clip space -> view space -> world space
     // Update mRayOrigin & mRayDir
     void UpdateRay();
@@ -47,22 +59,37 @@ public:
     // dummy before CS
     XMVECTOR PlaneLineIntersectVect(XMVECTOR pPoint, XMVECTOR pNormal);
 
-    
+
+    // *********************************************
+    // ray CS
+    // *********************************************
+    void BuildBuffers();
+
+    // Build Root Signature for Ray CS
     void BuildRootSignature();
+    
+    // Empty now
+    XMFLOAT3 GetIntersectionPos() { return mIntersectMappedData[mPickingResultNum-1].IntersectPos; };
+    
+    // Initialize
+    void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv) { mHeightMapGpuSrv = pHeightMapSrv;}
 
+    void SetIntersectShader(ID3DBlob* pShader) { mRayIntersectShader = pShader;}
+
+    void BuildIntersectPso();
+    
     // dispatch
-    void GetIntersectionPos();
-
-    void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv);
-
     void Execute(
         ID3D12GraphicsCommandList* pCmdList,
-        ID3D12RootSignature* pRootSig,
-        ID3D12PipelineState* pNormalMappingPso,
         ID3D12Resource* pHeightMap,
         RenderItem* pPlane);
 
-    void BuildIntersectPso();
+
+    // TODO : update constant buffer
+    void UpdateRayCBs(UINT pWidth, UINT pHeight, UINT pNumTriangles);
+
+    ID3D12PipelineState* GetRayIntersectPSO() const { return mRayIntersectPipelineState.Get();}
+    
 private:
     XMFLOAT3 mRayOrigin = XMFLOAT3(0.0f,0.0f,0.0f);
 
@@ -100,6 +127,11 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mRayIntersectPipelineState = nullptr;
 
-    // Initializing needed
     Microsoft::WRL::ComPtr<ID3DBlob> mRayIntersectShader = nullptr;
+
+    std::unique_ptr<UploadBuffer<Ray>> rayCB = nullptr;
+
+    std::unique_ptr<UploadBuffer<PlaneInfo>> planeInfoCB = nullptr;
+
+    PickingResult* mIntersectMappedData = nullptr;
 };

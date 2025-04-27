@@ -7,6 +7,18 @@ myRay::myRay(ID3D12Device* pDevice)
 {
     mD3dDevice = pDevice;
     bufferByteSize = mPickingResultNum * sizeof(PickingResult);
+
+    rayCB = std::make_unique<UploadBuffer<Ray>>(pDevice,1,true);
+    planeInfoCB = std::make_unique<UploadBuffer<PlaneInfo>>(pDevice,1,true);
+
+    BuildBuffers();
+
+    BuildRootSignature();
+}
+
+myRay::~myRay()
+{
+    mReadBackBuffer->Unmap(0,nullptr);
 }
 
 void myRay::BuildBuffers()
@@ -26,6 +38,8 @@ void myRay::BuildBuffers()
         D3D12_RESOURCE_STATE_COPY_DEST,
         nullptr,
         IID_PPV_ARGS(&mReadBackBuffer)));
+
+    ThrowIfFailed(mReadBackBuffer->Map(0,nullptr,reinterpret_cast<void**>(&mIntersectMappedData)));
 }
 
 void myRay::UpdateRay()
@@ -79,13 +93,14 @@ void myRay::BuildRootSignature()
 {
     CD3DX12_DESCRIPTOR_RANGE srvTable;
     srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    
     CD3DX12_ROOT_PARAMETER slotRootParameter[6];
     // height Map srv
     slotRootParameter[0].InitAsDescriptorTable(1,&srvTable);
     // vertex buffer
-    slotRootParameter[1].InitAsShaderResourceView(0);
+    slotRootParameter[1].InitAsShaderResourceView(1);
     // index buffer
-    slotRootParameter[2].InitAsShaderResourceView(1);
+    slotRootParameter[2].InitAsShaderResourceView(2);
     // ray info
     slotRootParameter[3].InitAsConstantBufferView(0);
     // plane info
@@ -115,25 +130,16 @@ void myRay::BuildRootSignature()
         IID_PPV_ARGS(mRayRootSignature.GetAddressOf())));
 }
 
-void myRay::GetIntersectionPos()
-{
-    // return PickingResult[0].IntersectPos;
-    
-    
-}
 
-void myRay::SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv)
-{
-    mHeightMapGpuSrv = pHeightMapSrv;
-}
 
-void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12RootSignature* pRootSig,
-    ID3D12PipelineState* pNormalMappingPso, ID3D12Resource* pHeightMap, RenderItem* pPlane)
+
+void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeightMap, RenderItem* pPlane)
 {
     pCmdList->SetComputeRootSignature(mRayRootSignature.Get());
+    
+    // pCmdList->SetPipelineState(mRayIntersectPipelineState.Get());
 
-    // TODO : pso 생성해서 넣어주기
-    pCmdList->SetPipelineState(mRayIntersectPipelineState.Get());
+    // set descriptor heap
     
     pCmdList->SetComputeRootDescriptorTable(0,mHeightMapGpuSrv);
     
@@ -141,12 +147,11 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12RootSignature* pR
     pCmdList->SetComputeRootShaderResourceView(1, pPlane->Geo->VertexBufferGPU->GetGPUVirtualAddress() );
     pCmdList->SetComputeRootShaderResourceView(2, pPlane->Geo->IndexBufferGPU->GetGPUVirtualAddress() );
 
-    // TODO : 상수 값 넣어주기
-    // 버퍼뷰 만들어서 업데이트 해줘야한다.
-    pCmdList->SetComputeRootConstantBufferView(3,)
-    pCmdList->SetComputeRootConstantBufferView(4,)
+    // 상수 값 넣어주기
+    
+    pCmdList->SetComputeRootConstantBufferView(3,rayCB->Resource()->GetGPUVirtualAddress());
+    pCmdList->SetComputeRootConstantBufferView(4,planeInfoCB->Resource()->GetGPUVirtualAddress());
 
-    // TODO : UAV 구조적 버퍼 값 넣어주기.
     pCmdList->SetComputeRootUnorderedAccessView(5,mOutputBuffer->GetGPUVirtualAddress());
     
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
@@ -157,7 +162,16 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12RootSignature* pR
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
             D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_COMMON));
 
-    // TODO : ReadBack 버퍼에 결과 outputBuffer 값을 넣어주어야 한다.
+
+    // ReadBack 버퍼에 결과 outputBuffer 값을 넣어준다 한다.
+    
+    pCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
+        D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE));
+
+    pCmdList->CopyResource(mReadBackBuffer.Get(), mOutputBuffer.Get());
+
+    pCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
+        D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COMMON));
 }
 
 void myRay::BuildIntersectPso()
@@ -173,4 +187,21 @@ void myRay::BuildIntersectPso()
     rayIntersectPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
     ThrowIfFailed(mD3dDevice->CreateComputePipelineState(&rayIntersectPSO,IID_PPV_ARGS(&mRayIntersectPipelineState)));
 }
+
+void myRay::UpdateRayCBs(UINT pWidth, UINT pHeight, UINT pNumTriangles)
+{
+    Ray tmpRay;
+    tmpRay.gRayDir = mRayDir;
+    tmpRay.gRayOrigin = mRayOrigin;
+
+    PlaneInfo tmpPlaneInfo;
+    tmpPlaneInfo.Height = pHeight;
+    tmpPlaneInfo.Width = pWidth;
+    tmpPlaneInfo.NumTriangles = pNumTriangles;
+    
+    rayCB->CopyData(0,tmpRay);
+    planeInfoCB->CopyData(0,tmpPlaneInfo);
+}
+
+
     

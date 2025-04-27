@@ -73,7 +73,7 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
                     subresources.data());
         
         pD3D12CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(Resource.Get(),
-                    D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+                    D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON));
 			
         return result;
     }
