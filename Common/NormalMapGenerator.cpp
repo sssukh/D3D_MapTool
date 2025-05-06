@@ -34,7 +34,7 @@ void NormalMapGenerator::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Root
         D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_GENERIC_READ));
 
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentNormalMap().Get(),
-        D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+        D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 
     // 8,8,1 is defined in Compute Shader
     UINT numGroupsX = (UINT)ceilf(mWidth/8.0f);
@@ -109,7 +109,7 @@ void NormalMapGenerator::BuildResources()
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
         &texDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&tmpTex)));
 

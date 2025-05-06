@@ -38,7 +38,6 @@ D3DApp::D3DApp(HINSTANCE hInstance)
 
 D3DApp::~D3DApp()
 {
-	
 	if(md3dDevice != nullptr)
 		FlushCommandQueue();
 	mImGui->ReleaseImGui();
@@ -362,16 +361,18 @@ void D3DApp::Update(const GameTimer& gt)
 	
 	
 	// 리소스 변경
-	
-	UpdateObjectCBs(gt);
-	UpdateMaterialCBs(gt);
-	UpdateMainPassCB(gt);
 
 	// update plane width, height in RayCB for CS
 	D3D12_RESOURCE_DESC tmpDesc = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc();
 	UINT tmpVertexByteSize = GetPlane()->Geo->VertexBufferByteSize;
 	UINT tmpVertexByteStride = GetPlane()->Geo->VertexByteStride;
 	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,tmpVertexByteSize/tmpVertexByteStride);
+	
+	UpdateObjectCBs(gt);
+	UpdateMaterialCBs(gt);
+	UpdateMainPassCB(gt);
+
+	
 	
 	// 지금 사용하는 heightMap으로 업데이트
 	UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
@@ -408,6 +409,8 @@ void D3DApp::Draw(const GameTimer& gt)
 	
 	ID3D12DescriptorHeap* descriptorHeaps[] = {mSrvDescriptorHeap.Get()};
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps),descriptorHeaps);
+
+	// mMouseRay->Execute(mCommandList.Get(),mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get(),GetPlane());
 	
 	// need renewal
 	if(mNormalMapGenerator->GetDirty()>0)
@@ -1069,10 +1072,10 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 		mMousePosOnPlane = mMouseRay->GetIntersectionPos();
 	}
 	
-	XMVECTOR point = XMVectorZero();
-	XMVECTOR normal = XMLoadFloat3(&XMFLOAT3(0.0f,1.0f,0.0f));
-
-	XMStoreFloat3(&mMousePosOnPlane,mMouseRay->PlaneLineIntersectVect(point,normal));
+	// XMVECTOR point = XMVectorZero();
+	// XMVECTOR normal = XMLoadFloat3(&XMFLOAT3(0.0f,1.0f,0.0f));
+	//
+	// XMStoreFloat3(&mMousePosOnPlane,mMouseRay->PlaneLineIntersectVect(point,normal));
 	
 	mMainPassCB.MouseProjPos = mMousePosOnPlane;
 	
@@ -1175,7 +1178,8 @@ void D3DApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources;
+	// 90 + 1(ray UAV)
+	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources + 1;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -1220,8 +1224,7 @@ void D3DApp::BuildDescriptorHeaps()
 	++mSrvDescriptorHeapObjCount;
 	
 	
-	// 이론상 update하고 draw하기 때문에 여기서 안하고 update에서 처리해줘도 되지 않나?
-	// UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
+	
 	
 	
 
@@ -1715,6 +1718,13 @@ void D3DApp::InitRay()
 	mMouseRay->SetIntersectShader(mShaders["rayIntersectCS"].Get());
 
 	mMouseRay->BuildIntersectPso();
+
+	mMouseRay->SetVertexIndexResource(mGeometries["PlaneGeo"]->VertexBufferGPU.Get(),mGeometries["PlaneGeo"]->IndexBufferGPU.Get());
+	
+	mMouseRay->BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize)
+			,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize));
+
+	mMouseRay->InitBuffer(mCommandList.Get(),mCommandQueue.Get(),mDirectCmdListAlloc.Get());
 }
 
 void D3DApp::CalcMouseRay()
@@ -1734,8 +1744,23 @@ void D3DApp::CalcMouseRay()
 
 	ID3D12CommandList* cmdsLists[] = {mCommandList.Get()};
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists),cmdsLists);
+	
 
-	FlushCommandQueue();
+	Microsoft::WRL::ComPtr<ID3D12Fence> CalcMouseFence;
+	UINT64 fenceValue = 1;
+	md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&CalcMouseFence));
+
+	HANDLE fenceEvent = CreateEventEx(nullptr, nullptr,0,EVENT_MODIFY_STATE | SYNCHRONIZE);
+
+        
+	mCommandQueue->Signal(CalcMouseFence.Get(),fenceValue);
+
+
+	// GPU가 펜스 값에 도달했는지 확인
+	if (CalcMouseFence->GetCompletedValue() < fenceValue) {
+		CalcMouseFence->SetEventOnCompletion(fenceValue, fenceEvent);
+		WaitForSingleObject(fenceEvent, INFINITE);
+	}
 }
 
 

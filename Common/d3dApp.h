@@ -331,7 +331,8 @@ private:
 
 	// height map's descriptor heap index for ring buffer
 	HeightMapBuffer mHeightMapBuffer;
-	
+
+	// 20 shader textures
 	UINT mMaxSrvCount= 20;
 	
 	// srv 1개 uav 1개
@@ -346,5 +347,6 @@ private:
 
 	UINT mCurrentDescriptorOffset=0;
 
+	UINT mCurrentUAVDescriptorOffset = Descriptors_Per_Frame * gNumFrameResources;
 };
 

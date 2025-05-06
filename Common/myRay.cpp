@@ -27,7 +27,7 @@ void myRay::BuildBuffers()
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
         &CD3DX12_RESOURCE_DESC::Buffer(bufferByteSize,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_COPY_DEST,
         nullptr,
         IID_PPV_ARGS(&mOutputBuffer)));
 
@@ -93,6 +93,9 @@ void myRay::BuildRootSignature()
 {
     CD3DX12_DESCRIPTOR_RANGE srvTable;
     srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
+    CD3DX12_DESCRIPTOR_RANGE uavTable;
+    uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
     
     CD3DX12_ROOT_PARAMETER slotRootParameter[6];
     // height Map srv
@@ -106,7 +109,7 @@ void myRay::BuildRootSignature()
     // plane info
     slotRootParameter[4].InitAsConstantBufferView(1);
     // uav
-    slotRootParameter[5].InitAsUnorderedAccessView(0);
+    slotRootParameter[5].InitAsDescriptorTable(1,&uavTable);
 
     CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
         0, nullptr,
@@ -130,14 +133,123 @@ void myRay::BuildRootSignature()
         IID_PPV_ARGS(mRayRootSignature.GetAddressOf())));
 }
 
+// void myRay::BuildDescriptorHeaps()
+// {
+//     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+//     
+//     heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+//     heapDesc.NumDescriptors = 1;
+//     heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+//     
+//     ThrowIfFailed(mD3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mUavDescriptorHeap)));
+//
+// }
 
+void myRay::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor, UINT descriptorSize, UINT vertexCount, UINT indexCount)
+{
+    mIntersectCpuUav = hCpuDescriptor;
+    mIntersectGpuUav = hGpuDescriptor;
+
+    mVertexCpuSrv = hCpuDescriptor.Offset(1,descriptorSize);
+    mVertexGpuSrv = hGpuDescriptor.Offset(1,descriptorSize);
+
+    mIndexCpuSrv = hCpuDescriptor.Offset(1,descriptorSize);
+    mIndexGpuSrv = hGpuDescriptor.Offset(1,descriptorSize);
+    
+    BuildDescriptors(vertexCount,indexCount);
+}
+
+void myRay::BuildDescriptors(UINT vertexCount, UINT indexCount)
+{
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    uavDesc.Buffer = {0,1,sizeof(PickingResult)};
+        
+    mD3dDevice->CreateUnorderedAccessView(
+        mOutputBuffer.Get(), nullptr, &uavDesc, mIntersectCpuUav);
+
+    // Create Vertex, Index Shader resource view
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc.Buffer.StructureByteStride = sizeof(Vertex); 
+    srvDesc.Buffer.NumElements = vertexCount;
+    mD3dDevice->CreateShaderResourceView(mVertexBuffer.Get(),&srvDesc,mVertexCpuSrv);
+
+    
+    srvDesc.Buffer.StructureByteStride = sizeof(uint32_t); 
+    srvDesc.Buffer.NumElements = indexCount;
+    mD3dDevice->CreateShaderResourceView(mIndexBuffer.Get(),&srvDesc,mIndexCpuSrv);
+}
+
+void myRay::InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* pCommandQueue, ID3D12CommandAllocator* pCommandAllocator)
+{
+    ID3D12Resource* uploadBuffer = nullptr;
+    
+    // 업로드 버퍼 생성
+    mD3dDevice->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Buffer(bufferByteSize),
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&uploadBuffer)
+    );
+
+    PickingResult initData ={};
+    initData.Distance = 1000;
+
+    void* mappedData = nullptr;
+    D3D12_RANGE readRange = {0,0};
+    uploadBuffer->Map(0,&readRange,&mappedData);
+    memcpy(mappedData, &initData,sizeof(PickingResult));
+    uploadBuffer->Unmap(0,nullptr);
+
+    pCmdList->Reset(pCommandAllocator,nullptr);
+
+    pCmdList->CopyBufferRegion(
+        mOutputBuffer.Get(),0,
+        uploadBuffer,0,
+        sizeof(PickingResult));
+
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
+        D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+
+    // pCmdList->Close();
+    // ID3D12CommandList* cmdLists[]={pCmdList};
+    // pCommandQueue->ExecuteCommandLists(1,cmdLists);
+    //
+    // // Wait For Gpu
+    // Microsoft::WRL::ComPtr<ID3D12Fence> uploadFence;
+    // UINT64 fenceValue = 1;
+    // mD3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&uploadFence));
+    //
+    // HANDLE fenceEvent = CreateEventEx(nullptr, nullptr,0,EVENT_MODIFY_STATE | SYNCHRONIZE);
+    //
+    //     
+    // pCommandQueue->Signal(uploadFence.Get(),fenceValue);
+    //
+    //
+    // // GPU가 펜스 값에 도달했는지 확인
+    // if (uploadFence->GetCompletedValue() < fenceValue) {
+    //     uploadFence->SetEventOnCompletion(fenceValue, fenceEvent);
+    //     WaitForSingleObject(fenceEvent, INFINITE);
+    // }
+    
+}
+
+void myRay::SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv)
+{
+    mHeightMapGpuSrv = pHeightMapSrv;
+}
 
 
 void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeightMap, RenderItem* pPlane)
 {
     pCmdList->SetComputeRootSignature(mRayRootSignature.Get());
-    
-    // pCmdList->SetPipelineState(mRayIntersectPipelineState.Get());
+
+    pCmdList->SetPipelineState(mRayIntersectPipelineState.Get());
 
     // set descriptor heap
     
@@ -148,16 +260,19 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
     pCmdList->SetComputeRootShaderResourceView(2, pPlane->Geo->IndexBufferGPU->GetGPUVirtualAddress() );
 
     // 상수 값 넣어주기
-    
     pCmdList->SetComputeRootConstantBufferView(3,rayCB->Resource()->GetGPUVirtualAddress());
     pCmdList->SetComputeRootConstantBufferView(4,planeInfoCB->Resource()->GetGPUVirtualAddress());
 
-    pCmdList->SetComputeRootUnorderedAccessView(5,mOutputBuffer->GetGPUVirtualAddress());
+    pCmdList->SetComputeRootDescriptorTable(5,mIntersectGpuUav);
+    // pCmdList->SetComputeRootUnorderedAccessView(5,mOutputBuffer->GetGPUVirtualAddress());
+    
     
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
             D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_GENERIC_READ));
-    
-    pCmdList->Dispatch(1,1,1);
+
+    // const UINT ThreadGroups = (triangleNums + 63)/64;
+    const UINT ThreadGroups = 1;
+    pCmdList->Dispatch(ThreadGroups,1,1);
     
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
             D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_COMMON));
@@ -166,12 +281,14 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
     // ReadBack 버퍼에 결과 outputBuffer 값을 넣어준다 한다.
     
     pCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
-        D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE));
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE));
 
     pCmdList->CopyResource(mReadBackBuffer.Get(), mOutputBuffer.Get());
 
     pCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
-        D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COMMON));
+        D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+
+   
 }
 
 void myRay::BuildIntersectPso()
@@ -198,6 +315,8 @@ void myRay::UpdateRayCBs(UINT pWidth, UINT pHeight, UINT pNumTriangles)
     tmpPlaneInfo.Height = pHeight;
     tmpPlaneInfo.Width = pWidth;
     tmpPlaneInfo.NumTriangles = pNumTriangles;
+
+    triangleNums = pNumTriangles;
     
     rayCB->CopyData(0,tmpRay);
     planeInfoCB->CopyData(0,tmpPlaneInfo);

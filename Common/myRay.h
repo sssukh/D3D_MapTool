@@ -16,7 +16,7 @@ struct PickingResult
 {
     bool Hit;
     XMFLOAT3 IntersectPos;
-    float Distance;
+    UINT Distance;
 };
 
 struct Ray 
@@ -67,14 +67,24 @@ public:
 
     // Build Root Signature for Ray CS
     void BuildRootSignature();
+
+    // void BuildDescriptorHeaps();
+
+    void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor, UINT descriptorSize, UINT vertexCount, UINT indexCount);
+    
+    void BuildDescriptors(UINT vertexCount, UINT indexCount);
+
+    void InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* pCommandQueue, ID3D12CommandAllocator* pCommandAllocator);
     
     // Empty now
     XMFLOAT3 GetIntersectionPos() { return mIntersectMappedData[mPickingResultNum-1].IntersectPos; };
     
     // Initialize
-    void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv) { mHeightMapGpuSrv = pHeightMapSrv;}
+    void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv); 
 
     void SetIntersectShader(ID3DBlob* pShader) { mRayIntersectShader = pShader;}
+
+    void SetVertexIndexResource(ID3D12Resource* pVertexBuffer, ID3D12Resource* pIndexBuffer) { mVertexBuffer = pVertexBuffer; mIndexBuffer = pIndexBuffer;}
 
     void BuildIntersectPso();
     
@@ -125,6 +135,18 @@ private:
 
     CD3DX12_GPU_DESCRIPTOR_HANDLE mHeightMapGpuSrv;
 
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mIntersectCpuUav;
+    
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mIntersectGpuUav;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mVertexCpuSrv;
+    
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mVertexGpuSrv;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mIndexCpuSrv;
+    
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mIndexGpuSrv;
+
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mRayIntersectPipelineState = nullptr;
 
     Microsoft::WRL::ComPtr<ID3DBlob> mRayIntersectShader = nullptr;
@@ -134,4 +156,13 @@ private:
     std::unique_ptr<UploadBuffer<PlaneInfo>> planeInfoCB = nullptr;
 
     PickingResult* mIntersectMappedData = nullptr;
+
+    UINT triangleNums = 0;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> mVertexBuffer = nullptr;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> mIndexBuffer = nullptr;
+    
+    
+    // Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mUavDescriptorHeap = nullptr;
 };

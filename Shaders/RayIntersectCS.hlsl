@@ -1,3 +1,5 @@
+#define XNUM 64
+
 struct Vertex
 {
 	float3 Pos;
@@ -11,13 +13,13 @@ struct PickingResult
     // uint TriangleID;
     // float2 BaryCoords = bary;
 	float3 IntersectPos;
-    float Distance;
+    uint Distance;
 };
 
 // 스트럭처드 버퍼
 // 광선 충돌 검출용
-StructuredBuffer<Vertex> gVertexBuffer;
-StructuredBuffer<uint> gIndexBuffer;
+StructuredBuffer<Vertex> gVertexBuffer : register(t1);
+StructuredBuffer<uint> gIndexBuffer : register(t2);
 
 // 광선
 cbuffer Ray : register(b0)
@@ -37,7 +39,7 @@ Texture2D gHeightMap           : register(t0);
 
 
 // 충돌 결과
-RWStructuredBuffer<PickingResult> gPickingResult;
+RWStructuredBuffer<PickingResult> gPickingResult : register(u0);
 
 
 // 광선-삼각형 교차 검사
@@ -71,8 +73,8 @@ bool RayIntersectTriangle(
 
 float ApplyDisplacement(float3 VertexPos)
 {
-	int u = VertexPos.x + gWidth*0.5f;
-	int v = VertexPos.z + gHeight * 0.5f;
+	int u = clamp(VertexPos.x + gWidth/2,0,gWidth-1);
+	int v = clamp(VertexPos.z + gHeight/2,0,gHeight-1);
 	int2 uv = int2(u,v);
 	float sampledHeightMap = gHeightMap[uv].r * 100.0f;
 
@@ -85,15 +87,18 @@ float ApplyDisplacement(float3 VertexPos)
 [numthreads(1, 1, 1)]
 void IntersectCS(uint3 tid : SV_DispatchThreadID)
 {
-    
     // 폄면 원본 메시 데이터 접근
     StructuredBuffer<Vertex> vertices = gVertexBuffer;
     StructuredBuffer<uint> indices = gIndexBuffer;
     
+	bool bIsIntersected = false;
+
     // 광선-메시 교차 검사
-    for (uint i = 0; i < gNumTriangles; ++i)
+	// [unroll(64)]
+    for (uint i = 0; i < gNumTriangles; i++)
+	// for (uint i = tid.x; i<gNumTriangles; i+=64)
     {
-        // uint3 tri = indices[i].xyz;
+
 		uint idx0 = indices[3*i];
 		uint idx1 = indices[3*i+1];
 		uint idx2 = indices[3*i+2];
@@ -108,18 +113,36 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
         v1 += ApplyDisplacement(v1);
         v2 += ApplyDisplacement(v2);
         
+		
         float t; float2 bary;
         if (RayIntersectTriangle(gRayOrigin, gRayDir, v0, v1, v2, t, bary))
         {
+			
             // 가장 가까운 교차점 저장
-            if (t < gPickingResult[0].Distance)
+            //if (t < gPickingResult[0].Distance)
             {
-                gPickingResult[0].Hit = true;
+                 gPickingResult[0].Hit = true;
                 // gPickingResult.TriangleID = i;
                 // gPickingResult.BaryCoords = bary;
 				gPickingResult[0].IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
                 gPickingResult[0].Distance = t;
             }
+			
+			
+
+        	// 원자적 연산으로 Distance 업데이트
+        	// uint oldDist;
+        	// InterlockedMin(gPickingResult[0].Distance, asuint(t), oldDist);
+            /*
+        	if (t < asfloat(oldDist))
+        	{
+        		gPickingResult[0].IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
+        		gPickingResult[0].Hit = true;
+        		gPickingResult[0].Distance = t;
+        	}
+			*/
+			
         }
+		
     }
 }
