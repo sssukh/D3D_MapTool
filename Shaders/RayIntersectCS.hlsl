@@ -13,7 +13,7 @@ struct PickingResult
     // uint TriangleID;
     // float2 BaryCoords = bary;
 	float3 IntersectPos;
-    uint Distance;
+    float Distance;
 };
 
 // 스트럭처드 버퍼
@@ -76,9 +76,9 @@ float ApplyDisplacement(float3 VertexPos)
 	int u = clamp(VertexPos.x + gWidth/2,0,gWidth-1);
 	int v = clamp(VertexPos.z + gHeight/2,0,gHeight-1);
 	int2 uv = int2(u,v);
-	float sampledHeightMap = gHeightMap[uv].r * 100.0f;
+	return gHeightMap[uv].r * 100.0f;
 
-	return float3(0.0f,sampledHeightMap,0.0f);
+	// return float3(0.0f,sampledHeightMap,0.0f);
 }
 
 
@@ -92,7 +92,9 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
     StructuredBuffer<uint> indices = gIndexBuffer;
     
 	bool bIsIntersected = false;
-
+	
+	float desDist; float3 desPos;
+	
     // 광선-메시 교차 검사
 	// [unroll(64)]
     for (uint i = 0; i < gNumTriangles; i++)
@@ -109,24 +111,25 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
         
         // 높이맵 변형 적용 (Domain Shader와 동일 로직)
 		// 높이맵 텍스처 필요
-        v0 += ApplyDisplacement(v0);
-        v1 += ApplyDisplacement(v1);
-        v2 += ApplyDisplacement(v2);
+        v0.y += ApplyDisplacement(v0);
+        v1.y += ApplyDisplacement(v1);
+        v2.y += ApplyDisplacement(v2);
         
 		
         float t; float2 bary;
         if (RayIntersectTriangle(gRayOrigin, gRayDir, v0, v1, v2, t, bary))
         {
-			
+			//desDist = t;
+			// desPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
             // 가장 가까운 교차점 저장
-            //if (t < gPickingResult[0].Distance)
-            {
-                 gPickingResult[0].Hit = true;
-                // gPickingResult.TriangleID = i;
-                // gPickingResult.BaryCoords = bary;
+            // if (t < gPickingResult[0].Distance)
+            // {
+                gPickingResult[0].Hit = true;
+            //    // gPickingResult.TriangleID = i;
+            //    // gPickingResult.BaryCoords = bary;
 				gPickingResult[0].IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
                 gPickingResult[0].Distance = t;
-            }
+            // }
 			
 			
 
@@ -145,4 +148,11 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
         }
 		
     }
+	
+	// GroupMemoryBarrierWithGroupSync();
+	
+
+	// gPickingResult[0].Hit = true;
+	// gPickingResult[0].IntersectPos = desPos;
+	// gPickingResult[0].Distance = desDist;
 }

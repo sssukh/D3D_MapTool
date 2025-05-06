@@ -366,7 +366,7 @@ void D3DApp::Update(const GameTimer& gt)
 	D3D12_RESOURCE_DESC tmpDesc = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc();
 	UINT tmpVertexByteSize = GetPlane()->Geo->VertexBufferByteSize;
 	UINT tmpVertexByteStride = GetPlane()->Geo->VertexByteStride;
-	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,tmpVertexByteSize/tmpVertexByteStride);
+	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount/3);
 	
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
@@ -1179,7 +1179,7 @@ void D3DApp::BuildDescriptorHeaps()
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
 	// 90 + 1(ray UAV)
-	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources + 1;
+	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources + 3;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -1399,6 +1399,7 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 	
 	SubmeshGeometry submesh;
 	submesh.IndexCount = indexCount;
+	submesh.VertexCount = plane.Vertices.size();
 	submesh.StartIndexLocation =0;
 	submesh.BaseVertexLocation = 0;
 
@@ -1719,10 +1720,11 @@ void D3DApp::InitRay()
 
 	mMouseRay->BuildIntersectPso();
 
-	mMouseRay->SetVertexIndexResource(mGeometries["PlaneGeo"]->VertexBufferGPU.Get(),mGeometries["PlaneGeo"]->IndexBufferGPU.Get());
+	mMouseRay->SetVertexIndexResource(mGeometries["planeGeo"]->VertexBufferGPU.Get(),mGeometries["planeGeo"]->IndexBufferGPU.Get());
 	
 	mMouseRay->BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize)
-			,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize));
+			,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize),mCbvSrvUavDescriptorSize,
+			mGeometries["planeGeo"]->DrawArgs["plane"].VertexCount,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount);
 
 	mMouseRay->InitBuffer(mCommandList.Get(),mCommandQueue.Get(),mDirectCmdListAlloc.Get());
 }

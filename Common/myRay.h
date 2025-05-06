@@ -16,7 +16,7 @@ struct PickingResult
 {
     bool Hit;
     XMFLOAT3 IntersectPos;
-    UINT Distance;
+    float Distance;
 };
 
 struct Ray 
@@ -77,7 +77,7 @@ public:
     void InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* pCommandQueue, ID3D12CommandAllocator* pCommandAllocator);
     
     // Empty now
-    XMFLOAT3 GetIntersectionPos() { return mIntersectMappedData[mPickingResultNum-1].IntersectPos; };
+    XMFLOAT3 GetIntersectionPos() { return mIntersectMappedData[0].IntersectPos; };
     
     // Initialize
     void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv); 

@@ -96,14 +96,22 @@ void myRay::BuildRootSignature()
 
     CD3DX12_DESCRIPTOR_RANGE uavTable;
     uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+    CD3DX12_DESCRIPTOR_RANGE srvTable1;
+    srvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
+    
+    CD3DX12_DESCRIPTOR_RANGE srvTable2;
+    srvTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
     
     CD3DX12_ROOT_PARAMETER slotRootParameter[6];
     // height Map srv
     slotRootParameter[0].InitAsDescriptorTable(1,&srvTable);
     // vertex buffer
-    slotRootParameter[1].InitAsShaderResourceView(1);
+    slotRootParameter[1].InitAsDescriptorTable(1,&srvTable1);
+    
     // index buffer
-    slotRootParameter[2].InitAsShaderResourceView(2);
+    slotRootParameter[2].InitAsDescriptorTable(1,&srvTable2);
+
     // ray info
     slotRootParameter[3].InitAsConstantBufferView(0);
     // plane info
@@ -170,17 +178,23 @@ void myRay::BuildDescriptors(UINT vertexCount, UINT indexCount)
         mOutputBuffer.Get(), nullptr, &uavDesc, mIntersectCpuUav);
 
     // Create Vertex, Index Shader resource view
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-    srvDesc.Buffer.StructureByteStride = sizeof(Vertex); 
-    srvDesc.Buffer.NumElements = vertexCount;
-    mD3dDevice->CreateShaderResourceView(mVertexBuffer.Get(),&srvDesc,mVertexCpuSrv);
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc1{};
+    srvDesc1.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc1.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc1.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc1.Buffer.FirstElement = 0;
+    srvDesc1.Buffer.StructureByteStride = sizeof(Vertex); 
+    srvDesc1.Buffer.NumElements = vertexCount;
+    mD3dDevice->CreateShaderResourceView(mVertexBuffer.Get(),&srvDesc1,mVertexCpuSrv);
 
-    
-    srvDesc.Buffer.StructureByteStride = sizeof(uint32_t); 
-    srvDesc.Buffer.NumElements = indexCount;
-    mD3dDevice->CreateShaderResourceView(mIndexBuffer.Get(),&srvDesc,mIndexCpuSrv);
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2{};
+    srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc2.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc2.Buffer.FirstElement = 0;
+    srvDesc2.Buffer.StructureByteStride = sizeof(uint16_t); 
+    srvDesc2.Buffer.NumElements = indexCount;
+    mD3dDevice->CreateShaderResourceView(mIndexBuffer.Get(),&srvDesc2,mIndexCpuSrv);
 }
 
 void myRay::InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* pCommandQueue, ID3D12CommandAllocator* pCommandAllocator)
@@ -202,11 +216,11 @@ void myRay::InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* 
 
     void* mappedData = nullptr;
     D3D12_RANGE readRange = {0,0};
-    uploadBuffer->Map(0,&readRange,&mappedData);
+    uploadBuffer->Map(0,nullptr,&mappedData);
     memcpy(mappedData, &initData,sizeof(PickingResult));
     uploadBuffer->Unmap(0,nullptr);
 
-    pCmdList->Reset(pCommandAllocator,nullptr);
+    // pCmdList->Reset(pCommandAllocator,nullptr);
 
     pCmdList->CopyBufferRegion(
         mOutputBuffer.Get(),0,
@@ -254,10 +268,11 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
     // set descriptor heap
     
     pCmdList->SetComputeRootDescriptorTable(0,mHeightMapGpuSrv);
+
     
     // plane 정보 넣어주기
-    pCmdList->SetComputeRootShaderResourceView(1, pPlane->Geo->VertexBufferGPU->GetGPUVirtualAddress() );
-    pCmdList->SetComputeRootShaderResourceView(2, pPlane->Geo->IndexBufferGPU->GetGPUVirtualAddress() );
+    pCmdList->SetComputeRootDescriptorTable(1,mVertexGpuSrv);
+    pCmdList->SetComputeRootDescriptorTable(2,mIndexGpuSrv);
 
     // 상수 값 넣어주기
     pCmdList->SetComputeRootConstantBufferView(3,rayCB->Resource()->GetGPUVirtualAddress());

@@ -75,7 +75,10 @@ void myImGui::Render(ID3D12GraphicsCommandList* pCommandList)
     if(isDebug)
     {
         ImGui::Render();
-		
+
+        ID3D12DescriptorHeap* heaps[] = {mSrvDescHeap.Get()};
+        pCommandList->SetDescriptorHeaps(1,heaps);
+        
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCommandList);
     }
 }

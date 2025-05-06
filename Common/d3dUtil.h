@@ -149,9 +149,11 @@ public:
 struct SubmeshGeometry
 {
 	UINT IndexCount = 0;
+	UINT VertexCount = 0;
 	UINT StartIndexLocation = 0;
 	INT BaseVertexLocation = 0;
-
+	
+	
     // Bounding box of the geometry defined by this submesh. 
     // This is used in later chapters of the book.
 	DirectX::BoundingBox Bounds;
