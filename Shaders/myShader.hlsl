@@ -265,10 +265,10 @@ float4 PS(DomainOut pin) : SV_Target
     float4 litColor = ambient + directLight;
 	
 	float3 PosOnPlane = pin.PosW;
-	PosOnPlane.y = 0.0f;
+	
 
 	// temporary code for check
-	if(length(PosOnPlane - gMousePosOnPlane)<5)
+	if(length(PosOnPlane - gMousePosOnPlane)<15)
 		litColor.r = 255.0f;
 
     // Common convention to take alpha from diffuse albedo.

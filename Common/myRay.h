@@ -22,7 +22,9 @@ struct PickingResult
 struct Ray 
 {
     XMFLOAT3 gRayOrigin;
+    float padding1;
     XMFLOAT3 gRayDir;
+    float padding2;
 };
 
 struct PlaneInfo

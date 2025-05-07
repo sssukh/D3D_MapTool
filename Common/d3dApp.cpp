@@ -1343,8 +1343,10 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "planeGeo";
-	
-	if(m*n>(UINT)1<<16)
+
+	// TODO : 테스트 후 수정
+	// 임시로 32bit 강제
+	if(m*n>(UINT)1<<1)
 	{
 		std::vector<std::uint32_t> indices = plane.Indices32;
 		indexCount = (UINT)indices.size();

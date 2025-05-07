@@ -89,7 +89,7 @@ void myImGui::DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue)
     {
         ImGui::Begin("Mouse Pos On Plane");
 
-        ImGui::Text("x : %f    z : %f",pValue.x,pValue.z);
+        ImGui::Text("x : %f   y: %f   z : %f",pValue.x, pValue.y, pValue.z);
     
         ImGui::End();
     }

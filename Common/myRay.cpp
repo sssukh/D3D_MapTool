@@ -192,7 +192,7 @@ void myRay::BuildDescriptors(UINT vertexCount, UINT indexCount)
     srvDesc2.Format = DXGI_FORMAT_UNKNOWN;
     srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
     srvDesc2.Buffer.FirstElement = 0;
-    srvDesc2.Buffer.StructureByteStride = sizeof(uint16_t); 
+    srvDesc2.Buffer.StructureByteStride = sizeof(uint32_t); 
     srvDesc2.Buffer.NumElements = indexCount;
     mD3dDevice->CreateShaderResourceView(mIndexBuffer.Get(),&srvDesc2,mIndexCpuSrv);
 }
@@ -281,6 +281,11 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
     pCmdList->SetComputeRootDescriptorTable(5,mIntersectGpuUav);
     // pCmdList->SetComputeRootUnorderedAccessView(5,mOutputBuffer->GetGPUVirtualAddress());
     
+    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mVertexBuffer.Get(),
+    //             D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+    //
+    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mIndexBuffer.Get(),
+    //         D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
     
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
             D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_GENERIC_READ));
@@ -291,8 +296,12 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
     
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
             D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_COMMON));
-
-
+    
+    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mVertexBuffer.Get(),
+    //             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON));
+    //
+    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mIndexBuffer.Get(),
+    //         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON));
     // ReadBack 버퍼에 결과 outputBuffer 값을 넣어준다 한다.
     
     pCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
