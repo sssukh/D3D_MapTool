@@ -82,10 +82,10 @@ float ApplyDisplacement(float3 VertexPos, float2 TexC)
 	// return gHeightMap[uv].r * 100.0f;
 	// return gHeightMap[TexC].r * 100.0f;
 	
-	int u = TexC.x * gWidth;
-	int v = TexC.y * gHeight;
-	int2 uv = int2(u,v);
-	return gHeightMap[uv].r * 100.0f;
+	 int u = TexC.x * gWidth;
+	 int v = TexC.y * gHeight;
+	 int2 uv = int2(u,v);
+	 return gHeightMap[uv].r * 100.0f;
 
 
 	// return float3(0.0f,sampledHeightMap,0.0f);
@@ -135,12 +135,13 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
 			//desDist = t;
 			// desPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
             // 가장 가까운 교차점 저장
-            // if (t < gPickingResult[0].Distance)
+            if (t < result.Distance)
             // {
                 result.Hit = true;
             //    // gPickingResult.TriangleID = i;
             //    // gPickingResult.BaryCoords = bary;
 				result.IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
+				// result.IntersectPos.y = ApplyDisplacement(result.IntersectPos,int2(0,0));
                 result.Distance = t;
             // }
 			

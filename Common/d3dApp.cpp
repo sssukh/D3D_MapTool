@@ -188,7 +188,7 @@ bool D3DApp::Initialize()
 	UINT width = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Width;
 	UINT height = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Height;
 	
-	BuildPlaneGeometry(width,height,10,10);
+	BuildPlaneGeometry(width,height,20,20);
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();

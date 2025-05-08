@@ -222,7 +222,9 @@ DomainOut DS(PatchTess patchTess,
 				+ tri[1].TexC * baryCoords.y
 				+ tri[2].TexC * baryCoords.z;
 	
-	float height = gHeightMap.SampleLevel(gsamAnisotropicWrap, t, 0).r * 2.0f - 1.0f;
+	// float height = gHeightMap.SampleLevel(gsamAnisotropicWrap, t, 0).r * 2.0f - 1.0f;
+	float height = gHeightMap.SampleLevel(gsamAnisotropicWrap, t, 0).r;
+
 	p.y = p.y + height * 100;
 
 	float4 normalMap = gNormalMap.SampleLevel(gsamAnisotropicWrap, t, 0);
@@ -266,10 +268,15 @@ float4 PS(DomainOut pin) : SV_Target
 	
 	float3 PosOnPlane = pin.PosW;
 	
+	float2 delta = pin.PosW.xz - gMousePosOnPlane.xz;
+
+	if(dot(delta,delta) < 15*15)
+		litColor.r = 255.0f;
+
 
 	// temporary code for check
-	if(length(PosOnPlane - gMousePosOnPlane)<15)
-		litColor.r = 255.0f;
+	// if(length(PosOnPlane - gMousePosOnPlane)<15)
+	//	litColor.r = 255.0f;
 
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;
