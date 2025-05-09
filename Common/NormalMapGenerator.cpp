@@ -26,6 +26,7 @@ void NormalMapGenerator::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Root
 
     pCmdList->SetPipelineState(pNormalMappingPso);
 
+    // TODO : heightMap과 normalMap의 srv(혹은 uav)를 프레임당 하나씩(총 3개) 두었는데 사용하는 것은 하나 뿐이다. 수정 요함.(그런데 프레임마다가 필요한가?) 
     // input(height map)의 gpuSrv descriptor Handle을 받아와야한다.
     pCmdList->SetComputeRootDescriptorTable(0,mHeightMapGpuSrv);
     pCmdList->SetComputeRootDescriptorTable(1,mNormalGpuUav);

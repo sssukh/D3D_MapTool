@@ -34,6 +34,19 @@ struct PlaneInfo
     UINT NumTriangles;
 };
 
+struct HeightModifyingInfo
+{
+    UINT IntersectRange;
+
+    UINT MaxStrengthRange;
+
+    float ModifingStrength;
+    
+    float padding1;
+    
+    XMFLOAT3 IntersectPos;
+};
+
 class myRay
 {
 public:
@@ -70,37 +83,53 @@ public:
     // Build Root Signature for Ray CS
     void BuildRootSignature();
 
+    void BuildModRootSignature();
+
     // void BuildDescriptorHeaps();
 
     void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor, UINT descriptorSize, UINT vertexCount, UINT indexCount);
     
     void BuildDescriptors(UINT vertexCount, UINT indexCount);
 
+    void BuildIntersectPso();
+
+    void BuildModPso();
+
+    void BuildModResource();
+    
     void InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* pCommandQueue, ID3D12CommandAllocator* pCommandAllocator);
     
     // Empty now
     XMFLOAT3 GetIntersectionPos() { return mIntersectMappedData[0].IntersectPos; };
+
+    bool IsRayIntersectPlane() {return mIntersectMappedData[0].Hit;}
     
     // Initialize
-    void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv); 
+    void SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv, ID3D12Resource* pHeightMap); 
 
     void SetIntersectShader(ID3DBlob* pShader) { mRayIntersectShader = pShader;}
 
+    void SetModShader(ID3DBlob* pShader) { mRayModShader = pShader;}
+
     void SetVertexIndexResource(ID3D12Resource* pVertexBuffer, ID3D12Resource* pIndexBuffer) { mVertexBuffer = pVertexBuffer; mIndexBuffer = pIndexBuffer;}
 
-    void BuildIntersectPso();
+ 
     
     // dispatch
-    void Execute(
+    void ExecuteRayIntersectTriangle(
         ID3D12GraphicsCommandList* pCmdList,
-        ID3D12Resource* pHeightMap,
-        RenderItem* pPlane);
+        ID3D12Resource* pHeightMap);
+
+    void ExecuteRayMod(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeightMap);
 
 
     // TODO : update constant buffer
     void UpdateRayCBs(UINT pWidth, UINT pHeight, UINT pNumTriangles);
 
     ID3D12PipelineState* GetRayIntersectPSO() const { return mRayIntersectPipelineState.Get();}
+
+    ID3D12PipelineState* GetRayModPSO() const { return mRayModPipelineState.Get();}
+
     
 private:
     XMFLOAT3 mRayOrigin = XMFLOAT3(0.0f,0.0f,0.0f);
@@ -133,7 +162,7 @@ private:
     
     Microsoft::WRL::ComPtr<ID3D12Device> mD3dDevice=nullptr;
 
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRayRootSignature = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRayIntersectSignature = nullptr;
 
     CD3DX12_GPU_DESCRIPTOR_HANDLE mHeightMapGpuSrv;
 
@@ -167,4 +196,33 @@ private:
     
     
     // Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mUavDescriptorHeap = nullptr;
+
+    // Modifying variables
+
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRayModRootSignature = nullptr;
+
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mRayModPipelineState = nullptr;
+    
+    Microsoft::WRL::ComPtr<ID3D12Resource> mModifiedHeight = nullptr;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mModCpuUav;
+    
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mModGpuUav;
+
+    Microsoft::WRL::ComPtr<ID3DBlob> mRayModShader = nullptr;
+    
+    UINT mIntersectRange = 15;
+
+    UINT mMaxStrengthRange = 5;
+
+    float mModifingStrength = 0.01f;
+
+    std::unique_ptr<UploadBuffer<HeightModifyingInfo>> modHeightCB = nullptr;
+
+    UINT mTexWidth = 0;
+    
+    UINT mTexHeight =0;
+    
+    DXGI_FORMAT mTexFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
 };

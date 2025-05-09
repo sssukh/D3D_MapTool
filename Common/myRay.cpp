@@ -10,10 +10,13 @@ myRay::myRay(ID3D12Device* pDevice)
 
     rayCB = std::make_unique<UploadBuffer<Ray>>(pDevice,1,true);
     planeInfoCB = std::make_unique<UploadBuffer<PlaneInfo>>(pDevice,1,true);
+    modHeightCB = std::make_unique<UploadBuffer<HeightModifyingInfo>>(pDevice,1,true);
 
     BuildBuffers();
 
     BuildRootSignature();
+
+    BuildModRootSignature();
 }
 
 myRay::~myRay()
@@ -138,20 +141,48 @@ void myRay::BuildRootSignature()
         0,
         serializedRootSig->GetBufferPointer(),
         serializedRootSig->GetBufferSize(),
-        IID_PPV_ARGS(mRayRootSignature.GetAddressOf())));
+        IID_PPV_ARGS(mRayIntersectSignature.GetAddressOf())));
 }
 
-// void myRay::BuildDescriptorHeaps()
-// {
-//     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-//     
-//     heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-//     heapDesc.NumDescriptors = 1;
-//     heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-//     
-//     ThrowIfFailed(mD3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mUavDescriptorHeap)));
-//
-// }
+void myRay::BuildModRootSignature()
+{
+    CD3DX12_DESCRIPTOR_RANGE srvTable;
+    srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
+    CD3DX12_DESCRIPTOR_RANGE uavTable;
+    uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+
+    slotRootParameter[0].InitAsDescriptorTable(1,&srvTable);
+
+    slotRootParameter[1].InitAsDescriptorTable(1,&uavTable);
+
+    slotRootParameter[2].InitAsConstantBufferView(0);
+
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
+        0, nullptr,
+        D3D12_ROOT_SIGNATURE_FLAG_NONE);
+
+    Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
+    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob = nullptr;
+    HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+        serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+    if(errorBlob != nullptr)
+    {
+        ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+    }
+    ThrowIfFailed(hr);
+
+    ThrowIfFailed(mD3dDevice->CreateRootSignature(
+        0,
+        serializedRootSig->GetBufferPointer(),
+        serializedRootSig->GetBufferSize(),
+        IID_PPV_ARGS(mRayModRootSignature.GetAddressOf())));
+}
+
+
 
 void myRay::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor, UINT descriptorSize, UINT vertexCount, UINT indexCount)
 {
@@ -163,6 +194,9 @@ void myRay::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor, CD3DX
 
     mIndexCpuSrv = hCpuDescriptor.Offset(1,descriptorSize);
     mIndexGpuSrv = hGpuDescriptor.Offset(1,descriptorSize);
+
+    mModCpuUav = hCpuDescriptor.Offset(1,descriptorSize);
+    mModGpuUav = hGpuDescriptor.Offset(1,descriptorSize);
     
     BuildDescriptors(vertexCount,indexCount);
 }
@@ -195,6 +229,14 @@ void myRay::BuildDescriptors(UINT vertexCount, UINT indexCount)
     srvDesc2.Buffer.StructureByteStride = sizeof(uint32_t); 
     srvDesc2.Buffer.NumElements = indexCount;
     mD3dDevice->CreateShaderResourceView(mIndexBuffer.Get(),&srvDesc2,mIndexCpuSrv);
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC modUavDesc = {};
+
+    modUavDesc.Format = mTexFormat;
+    modUavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    modUavDesc.Texture2D.MipSlice = 0;
+    
+    mD3dDevice->CreateUnorderedAccessView(mModifiedHeight.Get(), nullptr, &modUavDesc, mModCpuUav);
 }
 
 void myRay::InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* pCommandQueue, ID3D12CommandAllocator* pCommandAllocator)
@@ -230,38 +272,26 @@ void myRay::InitBuffer(ID3D12GraphicsCommandList* pCmdList, ID3D12CommandQueue* 
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
         D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 
-    // pCmdList->Close();
-    // ID3D12CommandList* cmdLists[]={pCmdList};
-    // pCommandQueue->ExecuteCommandLists(1,cmdLists);
-    //
-    // // Wait For Gpu
-    // Microsoft::WRL::ComPtr<ID3D12Fence> uploadFence;
-    // UINT64 fenceValue = 1;
-    // mD3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&uploadFence));
-    //
-    // HANDLE fenceEvent = CreateEventEx(nullptr, nullptr,0,EVENT_MODIFY_STATE | SYNCHRONIZE);
-    //
-    //     
-    // pCommandQueue->Signal(uploadFence.Get(),fenceValue);
-    //
-    //
-    // // GPU가 펜스 값에 도달했는지 확인
-    // if (uploadFence->GetCompletedValue() < fenceValue) {
-    //     uploadFence->SetEventOnCompletion(fenceValue, fenceEvent);
-    //     WaitForSingleObject(fenceEvent, INFINITE);
-    // }
+    
     
 }
 
-void myRay::SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv)
+void myRay::SetNewHeightMap(CD3DX12_GPU_DESCRIPTOR_HANDLE pHeightMapSrv, ID3D12Resource* pHeightMap)
 {
     mHeightMapGpuSrv = pHeightMapSrv;
+
+    D3D12_RESOURCE_DESC heightDesc = pHeightMap->GetDesc();
+    
+    mTexWidth = heightDesc.Width;
+    mTexHeight = heightDesc.Height;
+    mTexFormat  = heightDesc.Format;
 }
 
 
-void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeightMap, RenderItem* pPlane)
+
+void myRay::ExecuteRayIntersectTriangle(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeightMap)
 {
-    pCmdList->SetComputeRootSignature(mRayRootSignature.Get());
+    pCmdList->SetComputeRootSignature(mRayIntersectSignature.Get());
 
     pCmdList->SetPipelineState(mRayIntersectPipelineState.Get());
 
@@ -279,13 +309,6 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
     pCmdList->SetComputeRootConstantBufferView(4,planeInfoCB->Resource()->GetGPUVirtualAddress());
 
     pCmdList->SetComputeRootDescriptorTable(5,mIntersectGpuUav);
-    // pCmdList->SetComputeRootUnorderedAccessView(5,mOutputBuffer->GetGPUVirtualAddress());
-    
-    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mVertexBuffer.Get(),
-    //             D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
-    //
-    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mIndexBuffer.Get(),
-    //         D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
     
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
             D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_GENERIC_READ));
@@ -297,11 +320,6 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
     pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
             D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_COMMON));
     
-    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mVertexBuffer.Get(),
-    //             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON));
-    //
-    // pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mIndexBuffer.Get(),
-    //         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON));
     // ReadBack 버퍼에 결과 outputBuffer 값을 넣어준다 한다.
     
     pCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
@@ -315,11 +333,49 @@ void myRay::Execute(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeight
    
 }
 
+void myRay::ExecuteRayMod(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pHeightMap)
+{
+    pCmdList->SetComputeRootSignature(mRayModRootSignature.Get());
+
+    pCmdList->SetPipelineState(mRayModPipelineState.Get());
+
+    // TODO : heightMap의 srv를 프레임당 하나씩 두었는데 사용하는 것은 하나 뿐이다. 수정요함. (프레임당 하나로 쓰던, 하나로 고정해서 쓰던 해야한다.) 
+    pCmdList->SetComputeRootDescriptorTable(0,mHeightMapGpuSrv);
+
+    pCmdList->SetComputeRootDescriptorTable(1,mModGpuUav);
+
+    pCmdList->SetComputeRootConstantBufferView(2,modHeightCB->Resource()->GetGPUVirtualAddress());
+
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
+            D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_GENERIC_READ));
+
+    D3D12_RESOURCE_DESC heightDesc = pHeightMap->GetDesc();
+
+    UINT numGroupsX = (UINT)ceilf(heightDesc.Width/8.0f);
+    UINT numGroupsY = (UINT)ceilf(heightDesc.Height/8.0f);
+    
+    pCmdList->Dispatch(numGroupsX,numGroupsY,1);
+
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
+            D3D12_RESOURCE_STATE_GENERIC_READ,D3D12_RESOURCE_STATE_COPY_DEST));
+    
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mModifiedHeight.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_COPY_SOURCE));
+    
+    pCmdList->CopyResource(pHeightMap,mModifiedHeight.Get());
+    
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(pHeightMap,
+          D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_COMMON));
+    
+    pCmdList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(mModifiedHeight.Get(),
+            D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+}
+
 void myRay::BuildIntersectPso()
 {
-    // compute pso for normal mapping
+    // compute pso for computing intersect
     D3D12_COMPUTE_PIPELINE_STATE_DESC rayIntersectPSO = {};
-    rayIntersectPSO.pRootSignature = mRayRootSignature.Get();
+    rayIntersectPSO.pRootSignature = mRayIntersectSignature.Get();
     rayIntersectPSO.CS =
         {
         reinterpret_cast<BYTE*>(mRayIntersectShader->GetBufferPointer()),
@@ -328,6 +384,48 @@ void myRay::BuildIntersectPso()
     rayIntersectPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
     ThrowIfFailed(mD3dDevice->CreateComputePipelineState(&rayIntersectPSO,IID_PPV_ARGS(&mRayIntersectPipelineState)));
 }
+
+void myRay::BuildModPso()
+{
+    // compute pso for computing height map modifying
+    D3D12_COMPUTE_PIPELINE_STATE_DESC rayModPSO = {};
+    rayModPSO.pRootSignature = mRayModRootSignature.Get();
+    rayModPSO.CS =
+    {
+        reinterpret_cast<BYTE*>(mRayModShader->GetBufferPointer()),
+    mRayModShader->GetBufferSize()
+    };
+    rayModPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+    ThrowIfFailed(mD3dDevice->CreateComputePipelineState(&rayModPSO,IID_PPV_ARGS(&mRayModPipelineState)));
+}
+
+void myRay::BuildModResource()
+{
+    D3D12_RESOURCE_DESC texDesc;
+    ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
+    texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    texDesc.Alignment = 0;
+    texDesc.Width = mTexWidth;
+    texDesc.Height = mTexHeight;
+    texDesc.DepthOrArraySize = 1;
+    texDesc.MipLevels = 1;
+    texDesc.Format = mTexFormat;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.SampleDesc.Quality = 0;
+    texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    
+    
+    ThrowIfFailed(mD3dDevice->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &texDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nullptr,
+        IID_PPV_ARGS(&mModifiedHeight)));
+}
+
+
 
 void myRay::UpdateRayCBs(UINT pWidth, UINT pHeight, UINT pNumTriangles)
 {
@@ -341,7 +439,15 @@ void myRay::UpdateRayCBs(UINT pWidth, UINT pHeight, UINT pNumTriangles)
     tmpPlaneInfo.NumTriangles = pNumTriangles;
 
     triangleNums = pNumTriangles;
+
+    HeightModifyingInfo tmpModInfo;
+    tmpModInfo.IntersectPos = GetIntersectionPos();
+    tmpModInfo.ModifingStrength = mModifingStrength;
+    tmpModInfo.IntersectRange = mIntersectRange;
+    tmpModInfo.MaxStrengthRange = mMaxStrengthRange;
+
     
+    modHeightCB->CopyData(0,tmpModInfo);
     rayCB->CopyData(0,tmpRay);
     planeInfoCB->CopyData(0,tmpPlaneInfo);
 }

@@ -270,6 +270,7 @@ float4 PS(DomainOut pin) : SV_Target
 	
 	float2 delta = pin.PosW.xz - gMousePosOnPlane.xz;
 
+	// 15범위 내의 픽셀들 강조
 	if(dot(delta,delta) < 15*15)
 		litColor.r = 255.0f;
 

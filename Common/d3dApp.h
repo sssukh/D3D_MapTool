@@ -196,6 +196,8 @@ private:
 	void InitRay();
 
 	void CalcMouseRay();
+
+	void CalcHeightMod();
 protected:
 
     static D3DApp* mApp;

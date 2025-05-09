@@ -624,7 +624,8 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_LBUTTONDOWN:
-		
+		if(mMouseRay->IsRayIntersectPlane())
+			// CalcHeightMod();
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
@@ -646,7 +647,6 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             Set4xMsaaState(!m4xMsaaState);
 
         return 0;
-
 	}
 	
 
@@ -1068,6 +1068,8 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	mMouseRay->UpdateRay();
 
 	{
+		if(mMouseRay->IsRayIntersectPlane())
+			CalcHeightMod();
 		CalcMouseRay();
 		mMousePosOnPlane = mMouseRay->GetIntersectionPos();
 	}
@@ -1178,8 +1180,8 @@ void D3DApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	// 90 + 1(ray UAV)
-	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources + 3;
+	// 90 + 1(ray UAV) + 1(vertex srv) + 1(index srv) + 1(heightMap mod uav)
+	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources + 4;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -1243,11 +1245,13 @@ void D3DApp::BuildShadersAndInputLayout()
 	mShaders["VS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["HS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"HS","hs_5_0");
 	mShaders["DS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"DS","ds_5_0");
+	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
+
+	// computing shaders
 	mShaders["normalCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\NormalMapCS.hlsl",nullptr,"NormalCS","cs_5_0");
 	mShaders["rayIntersectCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\RayIntersectCS.hlsl",nullptr,"IntersectCS","cs_5_0");
+	mShaders["rayModCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\RayModCS.hlsl",nullptr,"ModCS","cs_5_0");
 
-	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
-	
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -1716,18 +1720,24 @@ void D3DApp::InitRay()
 	CD3DX12_GPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	hDescriptor.Offset(texOffset,mCbvSrvUavDescriptorSize);
 	
-	mMouseRay->SetNewHeightMap(hDescriptor);
+	mMouseRay->SetNewHeightMap(hDescriptor,mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get() );
 
 	mMouseRay->SetIntersectShader(mShaders["rayIntersectCS"].Get());
 
+	mMouseRay->SetModShader(mShaders["rayModCS"].Get());
+
 	mMouseRay->BuildIntersectPso();
 
+	mMouseRay->BuildModPso();
+
 	mMouseRay->SetVertexIndexResource(mGeometries["planeGeo"]->VertexBufferGPU.Get(),mGeometries["planeGeo"]->IndexBufferGPU.Get());
+
+	mMouseRay->BuildModResource();
 	
 	mMouseRay->BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize)
 			,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize),mCbvSrvUavDescriptorSize,
 			mGeometries["planeGeo"]->DrawArgs["plane"].VertexCount,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount);
-
+	
 	mMouseRay->InitBuffer(mCommandList.Get(),mCommandQueue.Get(),mDirectCmdListAlloc.Get());
 }
 
@@ -1742,7 +1752,7 @@ void D3DApp::CalcMouseRay()
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps),descriptorHeaps);
 	
 	// Dispatch
-	mMouseRay->Execute(mCommandList.Get(),mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get(),GetPlane());
+	mMouseRay->ExecuteRayIntersectTriangle(mCommandList.Get(),mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get());
 
 	ThrowIfFailed(mCommandList->Close());
 
@@ -1763,6 +1773,42 @@ void D3DApp::CalcMouseRay()
 	// GPU가 펜스 값에 도달했는지 확인
 	if (CalcMouseFence->GetCompletedValue() < fenceValue) {
 		CalcMouseFence->SetEventOnCompletion(fenceValue, fenceEvent);
+		WaitForSingleObject(fenceEvent, INFINITE);
+	}
+}
+
+void D3DApp::CalcHeightMod()
+{
+	ThrowIfFailed(mDirectCmdListAlloc->Reset());
+
+	// InitRay에서 RayPSO 초기화됨
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(),mMouseRay->GetRayModPSO() ));
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = {mSrvDescriptorHeap.Get()};
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps),descriptorHeaps);
+	
+	// Dispatch
+	mMouseRay->ExecuteRayMod(mCommandList.Get(),mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get());
+
+	ThrowIfFailed(mCommandList->Close());
+
+	ID3D12CommandList* cmdsLists[] = {mCommandList.Get()};
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists),cmdsLists);
+	
+
+	Microsoft::WRL::ComPtr<ID3D12Fence> CalcModFence;
+	UINT64 fenceValue = 1;
+	md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&CalcModFence));
+
+	HANDLE fenceEvent = CreateEventEx(nullptr, nullptr,0,EVENT_MODIFY_STATE | SYNCHRONIZE);
+
+        
+	mCommandQueue->Signal(CalcModFence.Get(),fenceValue);
+
+
+	// GPU가 펜스 값에 도달했는지 확인
+	if (CalcModFence->GetCompletedValue() < fenceValue) {
+		CalcModFence->SetEventOnCompletion(fenceValue, fenceEvent);
 		WaitForSingleObject(fenceEvent, INFINITE);
 	}
 }
