@@ -124,9 +124,15 @@ int D3DApp::Run()
 				// temporary
 				mImGui->DrawMousePlanePosWindow(mMousePosOnPlane);
 				
-				mImGui->DrawPlaneTextureListWindow(mTextureIndex, mCurrFrameResourceIndex, Descriptors_Per_Frame);
+				mImGui->DrawPlaneTextureListWindow(mTextureIndex);
 
 				mImGui->DrawWireFrameModeWindow(mIsWireFrameMode);
+
+				UINT tmpIntRange = mMouseRay->GetIntersectRange();
+				UINT tmpMaxStrRange = mMouseRay->GetStrengthRange();
+				float tmpModStrength = mMouseRay->GetModStrength();
+				
+				mImGui->DrawHeightModVarWindow()
 				
                 Draw(mTimer);
 
@@ -340,7 +346,7 @@ void D3DApp::OnResize()
 void D3DApp::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
-
+	OnMouseInput();
 	
 	
 	// Cycle through the circular frame resource array.
@@ -443,7 +449,10 @@ void D3DApp::Draw(const GameTimer& gt)
 
 	// bind normal map
 	CD3DX12_GPU_DESCRIPTOR_HANDLE normalTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	INT normalOffset = mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount;
+	// TODO : 현재 노말 index로 변경해야할듯
+	INT normalOffset;
+	mNormalMapGenerator->GetCurrentNormalMap(normalOffset);
+	normalOffset+=mMaxSrvCount;
 	normalTex.Offset(normalOffset,mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(5,normalTex);
 	
@@ -624,8 +633,7 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_LBUTTONDOWN:
-		if(mMouseRay->IsRayIntersectPlane())
-			// CalcHeightMod();
+		
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
@@ -1068,8 +1076,8 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	mMouseRay->UpdateRay();
 
 	{
-		if(mMouseRay->IsRayIntersectPlane())
-			CalcHeightMod();
+	// if(mMouseRay->IsRayIntersectPlane())
+	// 	CalcHeightMod();
 		CalcMouseRay();
 		mMousePosOnPlane = mMouseRay->GetIntersectionPos();
 	}
@@ -1180,8 +1188,8 @@ void D3DApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	// 90 + 1(ray UAV) + 1(vertex srv) + 1(index srv) + 1(heightMap mod uav)
-	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame * gNumFrameResources + 4;
+	// 30 + 1(ray UAV) + 1(vertex srv) + 1(index srv) + 1(heightMap mod uav)
+	srvHeapDesc.NumDescriptors = Descriptors_Per_Frame + 4;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -1202,27 +1210,23 @@ void D3DApp::BuildDescriptorHeaps()
 	// }
 
 	
-	for(int i=0;i<gNumFrameResources;++i)
-	{
-		CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame + mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-	}
-	++mSrvDescriptorHeapObjCount;
-	for(int i=0;i<gNumFrameResources;++i)
-	{
-		CreateShaderResourceView(myTextures["bricksTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame +mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-	}
+	
+	CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	
 	++mSrvDescriptorHeapObjCount;
 	
-	for(int i=0;i<gNumFrameResources;++i)
-	{
-		CreateShaderResourceView(myTextures["checkboardTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame +mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-	}
-		++mSrvDescriptorHeapObjCount;
+	CreateShaderResourceView(myTextures["bricksTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 	
-	for(int i=0;i<gNumFrameResources;++i)
-	{
-		CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),i * Descriptors_Per_Frame +mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
-	}
+	++mSrvDescriptorHeapObjCount;
+	
+	
+	CreateShaderResourceView(myTextures["checkboardTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	
+	++mSrvDescriptorHeapObjCount;
+	
+	
+	CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	
 	++mSrvDescriptorHeapObjCount;
 	
 	
@@ -1698,7 +1702,11 @@ void D3DApp::UpdateHeightMap(myTexture* pTexture)
 		// call buildResource()
 		mNormalMapGenerator->SetNewNormalMap(heightTex.Width,heightTex.Height,hDescriptor);
 
-		INT normalMapGenOffset = mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount;
+		INT normalMapGenOffset;
+
+		mNormalMapGenerator->GetCurrentNormalMap(normalMapGenOffset);
+
+		normalMapGenOffset+=mMaxSrvCount;
 		
 		mNormalMapGenerator->BuildDescriptors(
 			CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),normalMapGenOffset,mCbvSrvUavDescriptorSize)
@@ -1810,6 +1818,14 @@ void D3DApp::CalcHeightMod()
 	if (CalcModFence->GetCompletedValue() < fenceValue) {
 		CalcModFence->SetEventOnCompletion(fenceValue, fenceEvent);
 		WaitForSingleObject(fenceEvent, INFINITE);
+	}
+}
+
+void D3DApp::OnMouseInput()
+{
+	if(GetKeyState(VK_LBUTTON)&0x8000 && mMouseRay->IsRayIntersectPlane())
+	{
+		CalcHeightMod();
 	}
 }
 

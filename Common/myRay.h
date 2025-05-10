@@ -130,6 +130,19 @@ public:
 
     ID3D12PipelineState* GetRayModPSO() const { return mRayModPipelineState.Get();}
 
+
+    void SetIntersectRange(UINT pIntersectRange) { mIntersectRange = pIntersectRange;}
+
+    void SetStrengthRange(UINT pStrengthRange) { mMaxStrengthRange = pStrengthRange;}
+  
+    void SetModStrength(float pModStrength) {mModifingStrength = pModStrength;}
+    
+    UINT GetIntersectRange() { return mIntersectRange;}
+
+    UINT GetStrengthRange() { return mMaxStrengthRange;}
+  
+    float GetModStrength() {return mModifingStrength;}
+
     
 private:
     XMFLOAT3 mRayOrigin = XMFLOAT3(0.0f,0.0f,0.0f);
@@ -215,7 +228,7 @@ private:
 
     UINT mMaxStrengthRange = 5;
 
-    float mModifingStrength = 0.01f;
+    float mModifingStrength = 0.0025f;
 
     std::unique_ptr<UploadBuffer<HeightModifyingInfo>> modHeightCB = nullptr;
 

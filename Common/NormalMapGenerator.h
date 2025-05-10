@@ -29,12 +29,14 @@ public:
     
     UINT GetWidth() const {return mWidth;}
     UINT GetHeight() const {return mHeight;}
+
+    ID3D12Resource* GetCurrentNormalMap(int& retBufferIndex){ retBufferIndex = mCurrentBufferIndex; return mNormalMapBuffer[mCurrentBufferIndex].Get();}
 private:
     void BuildDescriptors();
     void BuildResources();
 
     void AddNormalMap(ID3D12Resource* pNewNormalMap);
-    
+
 
 private:
     ID3D12Device* mD3DDevice = nullptr;
@@ -56,5 +58,5 @@ private:
 
     int mCurrentBufferIndex = -1;
     
-    int mNumNormalDirty = 3;
+    int mNumNormalDirty = 1;
 };

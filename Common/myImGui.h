@@ -78,12 +78,13 @@ public:
     void DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue);
 
     // Window for Plane Texture Change
-    void DrawPlaneTextureListWindow(UINT& pTexIndex, int gFrameNum, int pDescriptorNumPerFrame);
+    void DrawPlaneTextureListWindow(UINT& pTexIndex);
 
     void DrawWireFrameModeWindow(bool& bIsWireFrameMode);
 
     bool DrawTextureOpenWindow(std::wstring& rFileDirectory );
-    
+
+    void DrawHeightModVarWindow(UINT& retIntersectRange, UINT& retMaxStrengthRange, float& retModStrength);
 // private:
     std::wstring OpenFileDialog();
     

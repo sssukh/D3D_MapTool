@@ -95,37 +95,37 @@ void myImGui::DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue)
     }
 }
 
-void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex, int gFrameNum, int pDescriptorNumPerFrame)
+void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex)
 {
-    UINT tmp = gFrameNum * pDescriptorNumPerFrame;
+    // UINT tmp = gFrameNum * pDescriptorNumPerFrame;
     ImGui::Begin("Plane Texture List");
     ImGui::Text("Click the button and change the plane texture");
     if(ImGui::Button("Texture0"))
-        pTexIndex= tmp + 0;
+        pTexIndex=0;
     ImGui::SameLine();
     
     if(ImGui::Button("Texture1"))
-        pTexIndex= tmp + 1;
+        pTexIndex=1;
     ImGui::SameLine();
 
     if(ImGui::Button("Texture2"))
-        pTexIndex= tmp + 2;
+        pTexIndex=2;
     ImGui::SameLine();
     
     if(ImGui::Button("Texture3"))
-        pTexIndex= tmp + 3;
+        pTexIndex=3;
     
     if(ImGui::Button("Normal"))
-        pTexIndex= tmp + 20;
+        pTexIndex=20;
     // if(ImGui::Button("NormalUav"))
     //     pTexIndex=5;
     //
     if(ImGui::Button("height1"))
-        pTexIndex= tmp + 22;
+        pTexIndex=22;
     if(ImGui::Button("height2"))
-        pTexIndex= tmp + 23;
+        pTexIndex=23;
     if(ImGui::Button("height3"))
-        pTexIndex= tmp + 24;
+        pTexIndex=24;
     ImGui::End();
 }
 
@@ -170,6 +170,27 @@ bool myImGui::DrawTextureOpenWindow(std::wstring& rFileDirectory)
 
     return false;
 }
+
+void myImGui::DrawHeightModVarWindow(UINT& retIntersectRange, UINT& retMaxStrengthRange, float& retModStrength)
+{
+    ImGui::Begin("Select Cursur Range");
+    
+    int tmpIntRange = 0;
+    int tmpMaxStrRange = 0;
+    float tmpModStrength = 0.0f;
+    ImGui::SliderInt("Intersect Range",&tmpIntRange,1,50);
+    ImGui::SliderInt("Max Strength Range",&tmpMaxStrRange,1,tmpIntRange);
+    ImGui::SliderFloat("Modifying Strength",&tmpModStrength,0.0025,0.01);
+    
+    ImGui::End();
+
+    retIntersectRange = tmpIntRange;
+    retMaxStrengthRange = tmpMaxStrRange;
+    retModStrength = tmpModStrength;
+    
+}
+
+
 
 std::wstring myImGui::OpenFileDialog()
 {

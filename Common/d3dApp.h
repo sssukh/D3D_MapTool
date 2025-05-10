@@ -91,7 +91,7 @@ struct HeightMapBuffer
 		int availableIndex = (mCurrentUsingIndex+1)%mMaxHeightMapCount;
 		mTextureBuffer[availableIndex] = std::move(pInTex);
 		mCurrentUsingIndex = (mCurrentUsingIndex+1)%mMaxHeightMapCount;
-		numDirty = 3;
+		numDirty = 1;
 	}
 	myTexture* GetCurrentUsingHeightmap() const { return mTextureBuffer[mCurrentUsingIndex].get();}
 
@@ -191,13 +191,15 @@ private:
 
 	RenderItem* GetPlane() const;
 
-	INT GetCurrentHeightMapOffset() const { return mCurrFrameResourceIndex * Descriptors_Per_Frame + mMaxSrvCount + mMaxNormalCount + mHeightMapBuffer.mCurrentUsingIndex;}
+	INT GetCurrentHeightMapOffset() const { return mMaxSrvCount + mMaxNormalCount + mHeightMapBuffer.mCurrentUsingIndex;}
 
 	void InitRay();
 
 	void CalcMouseRay();
 
 	void CalcHeightMod();
+
+	void OnMouseInput();
 protected:
 
     static D3DApp* mApp;
@@ -347,8 +349,6 @@ private:
 	
 	bool bIsHeightMapDirty = false;
 
-	UINT mCurrentDescriptorOffset=0;
-
-	UINT mCurrentUAVDescriptorOffset = Descriptors_Per_Frame * gNumFrameResources;
+	UINT mCurrentUAVDescriptorOffset = Descriptors_Per_Frame;
 };
 
