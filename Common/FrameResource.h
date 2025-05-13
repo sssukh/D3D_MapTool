@@ -42,7 +42,9 @@ struct PassConstants
 
 	UINT TextureIndex=1;
 
-	// DirectX::XMFLOAT2 texelSize;
+	UINT IntersectRange = 15;
+
+	UINT MaxStrengthRange = 5;
 };
 
 struct Vertex

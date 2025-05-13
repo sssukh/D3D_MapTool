@@ -25,6 +25,8 @@ public:
 
     int GetDirty() const { return mNumNormalDirty; }
 
+    void SetDirty() {mNumNormalDirty =1;}
+
     Microsoft::WRL::ComPtr<ID3D12Resource> GetCurrentNormalMap() { return mNormalMapBuffer[mCurrentBufferIndex]; }
     
     UINT GetWidth() const {return mWidth;}

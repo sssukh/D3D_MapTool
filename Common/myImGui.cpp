@@ -66,7 +66,7 @@ void myImGui::DrawImGui()
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
-        ImGui::ShowDemoWindow();
+        // ImGui::ShowDemoWindow();
     }
 }
 
@@ -175,9 +175,9 @@ void myImGui::DrawHeightModVarWindow(UINT& retIntersectRange, UINT& retMaxStreng
 {
     ImGui::Begin("Select Cursur Range");
     
-    int tmpIntRange = 0;
-    int tmpMaxStrRange = 0;
-    float tmpModStrength = 0.0f;
+    int tmpIntRange = retIntersectRange;
+    int tmpMaxStrRange = retMaxStrengthRange;
+    float tmpModStrength = retModStrength;
     ImGui::SliderInt("Intersect Range",&tmpIntRange,1,50);
     ImGui::SliderInt("Max Strength Range",&tmpMaxStrRange,1,tmpIntRange);
     ImGui::SliderFloat("Modifying Strength",&tmpModStrength,0.0025,0.01);

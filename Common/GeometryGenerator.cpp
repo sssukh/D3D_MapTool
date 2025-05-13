@@ -554,7 +554,7 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
     MeshData meshData;
 
 	uint32 vertexCount = m*n;
-	uint32 faceCount   = (m-1)*(n-1) * 2;
+	uint32 faceCount   = (m-1)*(n-1) * 1;
 
 	//
 	// Create the vertices.
@@ -591,7 +591,7 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
 	// Create the indices.
 	//
 
-	meshData.Indices32.resize(faceCount*3); // 3 indices per face
+	meshData.Indices32.resize(faceCount*4); // 3 indices per face
 
 	// Iterate over each quad and compute indices.
 	uint32 k = 0;
@@ -603,11 +603,11 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
 			meshData.Indices32[k+1] = i*n+j+1;
 			meshData.Indices32[k+2] = (i+1)*n+j;
 			
-			meshData.Indices32[k+3] = (i+1)*n+j;
-			meshData.Indices32[k+4] = i*n+j+1;
-			meshData.Indices32[k+5] = (i+1)*n+j+1;
+			meshData.Indices32[k+3] = (i+1)*n+j+1;
+			// meshData.Indices32[k+4] = i*n+j+1;
+			// meshData.Indices32[k+5] = (i+1)*n+j+1;
 
-			k += 6; // next quad
+			k += 4; // next quad
 		}
 	}
 

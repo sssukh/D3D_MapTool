@@ -128,12 +128,17 @@ int D3DApp::Run()
 
 				mImGui->DrawWireFrameModeWindow(mIsWireFrameMode);
 
-				UINT tmpIntRange = mMouseRay->GetIntersectRange();
-				UINT tmpMaxStrRange = mMouseRay->GetStrengthRange();
-				float tmpModStrength = mMouseRay->GetModStrength();
+				{
+					UINT tmpIntRange = mMouseRay->GetIntersectRange();
+					UINT tmpMaxStrRange = mMouseRay->GetStrengthRange();
+					float tmpModStrength = mMouseRay->GetModStrength();
 				
-				mImGui->DrawHeightModVarWindow()
-				
+					mImGui->DrawHeightModVarWindow(tmpIntRange,tmpMaxStrRange,tmpModStrength);
+
+					mMouseRay->SetIntersectRange(tmpIntRange);
+					mMouseRay->SetStrengthRange(tmpMaxStrRange);
+					mMouseRay->SetModStrength(tmpModStrength);
+				}
                 Draw(mTimer);
 
 			}
@@ -372,7 +377,7 @@ void D3DApp::Update(const GameTimer& gt)
 	D3D12_RESOURCE_DESC tmpDesc = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc();
 	UINT tmpVertexByteSize = GetPlane()->Geo->VertexBufferByteSize;
 	UINT tmpVertexByteStride = GetPlane()->Geo->VertexByteStride;
-	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount/3);
+	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount/4);
 	
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
@@ -1088,6 +1093,10 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	// XMStoreFloat3(&mMousePosOnPlane,mMouseRay->PlaneLineIntersectVect(point,normal));
 	
 	mMainPassCB.MouseProjPos = mMousePosOnPlane;
+
+	mMainPassCB.IntersectRange = mMouseRay->GetIntersectRange();
+	mMainPassCB.MaxStrengthRange = mMouseRay->GetStrengthRange();
+
 	
 	// Main pass stored in index 2
 	auto currPassCB = mCurrFrameResource->PassCB.get();
@@ -1354,7 +1363,7 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 
 	// TODO : 테스트 후 수정
 	// 임시로 32bit 강제
-	if(m*n>(UINT)1<<1)
+	if(true/*m*n>(UINT)1<<1*/)
 	{
 		std::vector<std::uint32_t> indices = plane.Indices32;
 		indexCount = (UINT)indices.size();
@@ -1467,7 +1476,7 @@ void D3DApp::BuildRenderItems()
 	planeRitem->ObjCBIndex = 0;
 	planeRitem->Mat = mMaterials["planeMat"].get();
 	planeRitem->Geo = mGeometries["planeGeo"].get();
-	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
 	planeRitem->IndexCount = planeRitem->Geo->DrawArgs["plane"].IndexCount;
 	planeRitem->StartIndexLocation = planeRitem->Geo->DrawArgs["plane"].StartIndexLocation;
 	planeRitem->BaseVertexLocation = planeRitem->Geo->DrawArgs["plane"].BaseVertexLocation;
@@ -1819,6 +1828,8 @@ void D3DApp::CalcHeightMod()
 		CalcModFence->SetEventOnCompletion(fenceValue, fenceEvent);
 		WaitForSingleObject(fenceEvent, INFINITE);
 	}
+
+	mNormalMapGenerator->SetDirty();
 }
 
 void D3DApp::OnMouseInput()

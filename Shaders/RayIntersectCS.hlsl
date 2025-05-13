@@ -41,6 +41,13 @@ Texture2D gHeightMap           : register(t0);
 // 충돌 결과
 RWStructuredBuffer<PickingResult> gPickingResult : register(u0);
 
+bool RayIntersectQuad(
+	float3 rayOrigin, float3 rayDir,
+	float3 v0, float3 v1, float3 v2, float3 v3,
+	out float t, out float2 uv)
+{
+	
+}
 
 // 광선-삼각형 교차 검사
 bool RayIntersectTriangle(
@@ -85,7 +92,7 @@ float ApplyDisplacement(float3 VertexPos, float2 TexC)
 	 int u = TexC.x * gWidth;
 	 int v = TexC.y * gHeight;
 	 int2 uv = int2(u,v);
-	 return gHeightMap[uv].r * 100.0f;
+	 return gHeightMap[uv].r * 50.0f;
 
 
 	// return float3(0.0f,sampledHeightMap,0.0f);
@@ -113,52 +120,45 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
 		uint idx0 = indices[3*i];
 		uint idx1 = indices[3*i+1];
 		uint idx2 = indices[3*i+2];
+		uint idx3 = indices[3*i+3];
 
         float3 v0 = vertices[idx0].Pos;
         float3 v1 = vertices[idx1].Pos;
         float3 v2 = vertices[idx2].Pos;
+		float3 v3 = vertices[idx3].Pos;
         
 		float2 v0UV = vertices[idx0].Tex;
         float2 v1UV = vertices[idx1].Tex;
         float2 v2UV = vertices[idx2].Tex;
+		float2 v3UV = vertices[idx3].Tex;
 
         // 높이맵 변형 적용 (Domain Shader와 동일 로직)
 		// 높이맵 텍스처 필요
         v0.y += ApplyDisplacement(v0,v0UV);
         v1.y += ApplyDisplacement(v1,v1UV);
         v2.y += ApplyDisplacement(v2,v2UV);
-        
+        v3.y += ApplyDisplacement(v3,v3UV);
 		
         float t; float2 bary;
         if (RayIntersectTriangle(gRayOrigin, gRayDir, v0, v1, v2, t, bary))
         {
-			//desDist = t;
-			// desPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
             // 가장 가까운 교차점 저장
             if (t < result.Distance)
-            // {
+            {
                 result.Hit = true;
-            //    // gPickingResult.TriangleID = i;
-            //    // gPickingResult.BaryCoords = bary;
 				result.IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
-				// result.IntersectPos.y = ApplyDisplacement(result.IntersectPos,int2(0,0));
                 result.Distance = t;
-            // }
-			
-			
-
-        	// 원자적 연산으로 Distance 업데이트
-        	// uint oldDist;
-        	// InterlockedMin(gPickingResult[0].Distance, asuint(t), oldDist);
-            /*
-        	if (t < asfloat(oldDist))
-        	{
-        		gPickingResult[0].IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
-        		gPickingResult[0].Hit = true;
-        		gPickingResult[0].Distance = t;
-        	}
-			*/
-			
+            }
+        }
+		 if (RayIntersectTriangle(gRayOrigin, gRayDir, v1, v2, v3, t, bary))
+        {
+            // 가장 가까운 교차점 저장
+            if (t < result.Distance)
+            {
+                result.Hit = true;
+				result.IntersectPos = (1-bary.x-bary.y)*v0 + bary.x*v1 + bary.y*v2;
+                result.Distance = t;
+            }
         }
 		
     }
