@@ -41,13 +41,7 @@ Texture2D gHeightMap           : register(t0);
 // 충돌 결과
 RWStructuredBuffer<PickingResult> gPickingResult : register(u0);
 
-bool RayIntersectQuad(
-	float3 rayOrigin, float3 rayDir,
-	float3 v0, float3 v1, float3 v2, float3 v3,
-	out float t, out float2 uv)
-{
-	
-}
+
 
 // 광선-삼각형 교차 검사
 bool RayIntersectTriangle(
@@ -79,6 +73,53 @@ bool RayIntersectTriangle(
     return t > 0.0f;
 
 	// bary.x for v1, bary.y for v2, (1 - bary.x - bary.y) for v0
+}
+
+bool RayIntersectQuad(
+	float3 rayOrigin, float3 rayDir,
+	float3 v0, float3 v1, float3 v2, float3 v3,
+	out float t, out float2 uv)
+{
+	/*
+	float3 dv1 = v1 - v0;
+	float3 dv2 = v2 - v0;
+
+	float3 n = cross(dv2, dv1);
+
+	float nDot = dot(n,rayDir);
+	
+	if(nDot < 1e-8 && nDot > -1e-8) return false;
+
+	float d = - dot(n,v0);
+
+	t = -(dot(n,rayOrigin) + d)/nDot;
+
+	float3 intersectPos = rayOrigin + t*rayDir;
+	
+	float3 vp = intersectPos - v0;
+
+
+	
+
+	if(intersectPos.x<v0.x || intersectPos.x>v1.x || intersectPos.z<v2.z || intersectPos.z>v0.z)
+		return false;
+	
+
+	float u = dot(vp, normalize(dv1)) / length(dv1);
+	float v = dot(vp, normalize(dv2)) / length(dv2);
+	
+	uv = float2(u,v);
+	
+	return true;
+	*/
+	bool hit1 = RayIntersectTriangle(rayOrigin,rayDir,v0,v1,v2, t, uv);
+	
+	if(hit1)
+		return hit1;
+	
+	bool hit2 = RayIntersectTriangle(rayOrigin,rayDir,v1,v2,v3,t,uv);
+	
+	return hit2;
 }
 
 float ApplyDisplacement(float3 VertexPos, float2 TexC)
@@ -117,10 +158,10 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
 	// for (uint i = tid.x; i<gNumTriangles; i+=64)
     {
 
-		uint idx0 = indices[3*i];
-		uint idx1 = indices[3*i+1];
-		uint idx2 = indices[3*i+2];
-		uint idx3 = indices[3*i+3];
+		uint idx0 = indices[4*i];
+		uint idx1 = indices[4*i+1];
+		uint idx2 = indices[4*i+2];
+		uint idx3 = indices[4*i+3];
 
         float3 v0 = vertices[idx0].Pos;
         float3 v1 = vertices[idx1].Pos;
@@ -140,6 +181,7 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
         v3.y += ApplyDisplacement(v3,v3UV);
 		
         float t; float2 bary;
+		/*
         if (RayIntersectTriangle(gRayOrigin, gRayDir, v0, v1, v2, t, bary))
         {
             // 가장 가까운 교차점 저장
@@ -160,6 +202,16 @@ void IntersectCS(uint3 tid : SV_DispatchThreadID)
                 result.Distance = t;
             }
         }
+		*/
+		if(RayIntersectQuad(gRayOrigin, gRayDir, v0,v1,v2,v3, t, bary))
+		{
+			if(t<result.Distance)
+			{
+				result.Hit = true;
+				result.IntersectPos = gRayOrigin + t * gRayDir; 
+				result.Distance = t;
+			}
+		}
 		
     }
 	
