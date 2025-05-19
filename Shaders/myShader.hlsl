@@ -118,6 +118,15 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
+float CalcTessFactor(float4 centerPos)
+{
+	float d = distance(centerPos,float4(gEyePosW,1.0f));
+
+	const float d0 = 100.0f;
+	const float d1 = 500.0f;
+	return clamp(20.0f*saturate( (d1-d)/(d1-d0) ),3.0f,64.0f);
+}
+
 struct PatchTess
 {
 	float EdgeTess[4] : SV_TessFactor;
@@ -129,25 +138,19 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 	PatchTess pt;
 	
 	float3 centerL = 0.25f*(patch[0].PosL + patch[1].PosL + patch[2].PosL + patch[3].PosL);
-	float3 centerW = mul(float4(centerL, 1.0f), gWorld).xyz;
+	float4 centerW = mul(float4(centerL, 1.0f), gWorld);
 	
-	float d = distance(centerW, gEyePosW);
-
-	// Tessellate the patch based on distance from the eye such that
-	// the tessellation is 0 if d >= d1 and 64 if d <= d0.  The interval
-	// [d0, d1] defines the range we tessellate in.
 	
-	const float d0 = 100.0f;
-	const float d1 = 500.0f;
-	float tess = 64.0f*saturate( (d1-d)/(d1-d0) );
 
 	// Uniformly tessellate the patch.
 
-	pt.EdgeTess[0] = tess;
-	pt.EdgeTess[1] = tess;
-	pt.EdgeTess[2] = tess;
-	pt.EdgeTess[3] = tess;
+	pt.EdgeTess[0] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[2].PosL,1.0f),gWorld));
+	pt.EdgeTess[1] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[1].PosL,1.0f),gWorld));
+	pt.EdgeTess[2] = CalcTessFactor(0.5f * mul(float4(patch[1].PosL + patch[3].PosL,1.0f),gWorld));
+	pt.EdgeTess[3] = CalcTessFactor(0.5f * mul(float4(patch[2].PosL + patch[3].PosL,1.0f),gWorld));
 	
+	float tess = CalcTessFactor(centerW);
+
 	pt.InsideTess[0] = tess;
 	pt.InsideTess[1] = tess;
 	
