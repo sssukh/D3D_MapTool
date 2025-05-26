@@ -29,7 +29,7 @@ class myTexture
 {
 public:
     myTexture(){};
-    myTexture(std::string pName, std::wstring pFileName);
+    myTexture(std::string pName, std::wstring pFileName, bool pIsCubeMap = false);
     ~myTexture()
     {
         Resource = nullptr;
@@ -60,4 +60,6 @@ public:
     
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mD3D12DescriptorHeap = nullptr;
     INT mHandleOffset;
+
+    bool bIsCubeMap = false;
 };

@@ -200,6 +200,7 @@ bool D3DApp::Initialize()
 	UINT height = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Height;
 	
 	BuildPlaneGeometry(width,height,20,20);
+	BuildSphereGeometry();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -454,16 +455,26 @@ void D3DApp::Draw(const GameTimer& gt)
 
 	// bind normal map
 	CD3DX12_GPU_DESCRIPTOR_HANDLE normalTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	// TODO : 현재 노말 index로 변경해야할듯
 	INT normalOffset;
 	mNormalMapGenerator->GetCurrentNormalMap(normalOffset);
 	normalOffset+=mMaxSrvCount;
 	normalTex.Offset(normalOffset,mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(5,normalTex);
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	INT skyOffset = myTextures["skyCubeMapTex"]->mHandleOffset;
+	skyTex.Offset(skyOffset,mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(6,skyTex);
+	
 	
 	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::Opaque]);
 	
 
+	// draw sky sphere
+	mCommandList->SetPipelineState(mPSOs["sky"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Sky]);
+	
+	
 	// ImGui Render
 	mImGui->Render(mCommandList.Get());
 	
@@ -1105,7 +1116,6 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 
 void D3DApp::LoadTextures()
 {
-	// TODO : textures should be take place in frame buffers 
 	auto myiceTex = std::make_unique<myTexture>("iceTex",L"../../Textures/ice.dds");
 	myiceTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 	
@@ -1126,8 +1136,14 @@ void D3DApp::LoadTextures()
 
 	myTextures[mywhiteTex->Name] = std::move(mywhiteTex);
 
-	std::wstring test = mImGui->OpenFileDialog();
-	auto myHeightTex = std::make_unique<myTexture>("heightTex",test);
+	auto mySkyCubeMapTex = std::make_unique<myTexture>("skyCubeMapTex",L"../../Textures/snowcube1024.dds",true);
+	mySkyCubeMapTex->CreateDDSTextureFromFile(md3dDevice.Get(),mCommandList.Get());
+	// mySkyCubeMapTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+
+	myTextures[mySkyCubeMapTex->Name] = std::move(mySkyCubeMapTex);
+	
+	std::wstring texPath = mImGui->OpenFileDialog();
+	auto myHeightTex = std::make_unique<myTexture>("heightTex",texPath);
 
 // 	auto myHeightTex = std::make_unique<myTexture>("heightTex",L"../../Textures/gray7.jpg");
 	myHeightTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
@@ -1146,7 +1162,8 @@ void D3DApp:: BuildRootSignature()
 	CD3DX12_DESCRIPTOR_RANGE normalTable;
 	normalTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
 	
-	
+	CD3DX12_DESCRIPTOR_RANGE skyTexTable;
+	skyTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 6);
 	
 	
 
@@ -1154,7 +1171,7 @@ void D3DApp:: BuildRootSignature()
 	
 	
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[7];
 
 	// Perfomance TIP: Order from most frequent to least frequent.
 	slotRootParameter[0].InitAsConstantBufferView(0);
@@ -1163,12 +1180,14 @@ void D3DApp:: BuildRootSignature()
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[4].InitAsDescriptorTable(1,&heightTable,D3D12_SHADER_VISIBILITY_DOMAIN);
 	slotRootParameter[5].InitAsDescriptorTable(1,&normalTable,D3D12_SHADER_VISIBILITY_DOMAIN);
+	slotRootParameter[6].InitAsDescriptorTable(1,&skyTexTable,D3D12_SHADER_VISIBILITY_PIXEL);
+
 
 
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(7, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -1238,8 +1257,9 @@ void D3DApp::BuildDescriptorHeaps()
 	
 	++mSrvDescriptorHeapObjCount;
 	
+	CreateShaderResourceView(myTextures["skyCubeMapTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 	
-	
+	++mSrvDescriptorHeapObjCount;
 	
 	
 
@@ -1265,6 +1285,10 @@ void D3DApp::BuildShadersAndInputLayout()
 	mShaders["rayIntersectCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\RayIntersectCS.hlsl",nullptr,"IntersectCS","cs_5_0");
 	mShaders["rayModCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\RayModCS.hlsl",nullptr,"ModCS","cs_5_0");
 
+	mShaders["skyVS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Sky.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skyPS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Sky.hlsl", nullptr, "PS", "ps_5_1");
+
+	
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -1331,7 +1355,27 @@ void D3DApp::BuildPSOs()
 		};
 	normalPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&normalPSO,IID_PPV_ARGS(&mPSOs["normalMapping"])));
-	
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = opaquePsoDesc;
+	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+	skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	skyPsoDesc.pRootSignature = mRootSignature.Get();
+	skyPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+	mShaders["skyVS"]->GetBufferSize()
+	};
+	skyPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+		mShaders["skyPS"]->GetBufferSize()
+	};
+	skyPsoDesc.DS = {};
+	skyPsoDesc.HS = {};
+
+	skyPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
 }
 
 void D3DApp::BuildFrameResources()
@@ -1437,6 +1481,14 @@ void D3DApp::BuildMaterials()
 	planeMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	planeMat->Roughness = 0.5f;
 
+	auto skyMat = std::make_unique<Material>();
+	skyMat->Name = "skyMat";
+	skyMat->MatCBIndex = 1;
+	skyMat->DiffuseSrvHeapIndex = 1;
+	skyMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	skyMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	skyMat->Roughness = 0.5f;
+
 	// auto bricks = std::make_unique<Material>();
 	// bricks->Name = "bricks";
 	// bricks->MatCBIndex = 1;
@@ -1462,6 +1514,8 @@ void D3DApp::BuildMaterials()
 	// ice->Roughness = 0.5f;
 	
 	mMaterials["planeMat"] = std::move(planeMat);
+	mMaterials["skyMat"] = std::move(skyMat);
+
 	// mMaterials["bricks"] = std::move(bricks);
 	// mMaterials["checkboard"] = std::move(checkboard);
 	// mMaterials["ice"] = std::move(ice);
@@ -1480,9 +1534,24 @@ void D3DApp::BuildRenderItems()
 	planeRitem->IndexCount = planeRitem->Geo->DrawArgs["plane"].IndexCount;
 	planeRitem->StartIndexLocation = planeRitem->Geo->DrawArgs["plane"].StartIndexLocation;
 	planeRitem->BaseVertexLocation = planeRitem->Geo->DrawArgs["plane"].BaseVertexLocation;
-	mRitemLayer[(int)RenderType::Opaque].push_back(planeRitem.get());
 	
+	mRitemLayer[(int)RenderType::Opaque].push_back(planeRitem.get());
 	mAllRitems.push_back(std::move(planeRitem));
+
+	// build sky sphere
+	auto skyRitem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+	skyRitem->TexTransform = MathHelper::Identity4x4();
+	skyRitem->ObjCBIndex = 1;
+	skyRitem->Mat = mMaterials["skyMat"].get();
+	skyRitem->Geo = mGeometries["sphereGeo"].get();
+	skyRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	skyRitem->IndexCount = skyRitem->Geo->DrawArgs["sphere"].IndexCount;
+	skyRitem->StartIndexLocation = skyRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+	skyRitem->BaseVertexLocation = skyRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderType::Sky].push_back(skyRitem.get());
+	mAllRitems.push_back(std::move(skyRitem));
 }
 
 void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
@@ -1838,6 +1907,55 @@ void D3DApp::OnMouseInput()
 	{
 		CalcHeightMod();
 	}
+}
+
+void D3DApp::BuildSphereGeometry()
+{
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+
+	SubmeshGeometry sphereSubmesh;
+	sphereSubmesh.IndexCount = sphere.Indices32.size();
+	sphereSubmesh.StartIndexLocation = 0;
+	sphereSubmesh.BaseVertexLocation = 0;
+
+	std::vector<Vertex> vertices(sphere.Vertices.size());
+
+	for(size_t i =0;i< sphere.Vertices.size(); ++i)
+	{
+		vertices[i].Pos = sphere.Vertices[i].Position;
+		vertices[i].Normal = sphere.Vertices[i].Normal;
+		vertices[i].TexC = sphere.Vertices[i].TexC;
+	}
+
+	std::vector<std::uint32_t> indices = sphere.Indices32;
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint32_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "sphereGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),vertices.data(),vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),indices.data(),ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize,geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(),indices.data(),ibByteSize,geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	geo->DrawArgs["sphere"] = sphereSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
 }
 
 

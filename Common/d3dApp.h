@@ -35,6 +35,7 @@ const UINT Descriptors_Per_Frame =30;
 enum class RenderType
 {
 	Opaque =0,
+	Sky = 1,
 	Count
 };
 
@@ -200,6 +201,8 @@ private:
 	void CalcHeightMod();
 
 	void OnMouseInput();
+
+	void BuildSphereGeometry();
 protected:
 
     static D3DApp* mApp;
