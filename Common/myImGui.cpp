@@ -214,6 +214,20 @@ std::wstring myImGui::OpenFileDialog()
     return L""; // 취소 시 빈 문자열 반환
 }
 
+bool myImGui::DrawSaveMapWindow()
+{
+    bool result = false;
+    
+    ImGui::Begin("Save the Map");
+    if(ImGui::Button("Save"))
+    {
+        // 파일 열기
+        result = true;
+    }
+    ImGui::End();
+    return result;
+}
+
 
 void myImGui::ReleaseImGui()
 {

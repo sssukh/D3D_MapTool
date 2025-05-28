@@ -106,13 +106,16 @@ void GameTimer::Tick()
 		return;
 	}
 
-	__int64 currTime;
-	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
-	mCurrTime = currTime;
+	// while(mDeltaTime<0.01)
+	// {
+		__int64 currTime;
+		QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
+		mCurrTime = currTime;
 
-	// Time difference between this frame and the previous.
-	mDeltaTime = (mCurrTime - mPrevTime)*mSecondsPerCount;
-
+		// Time difference between this frame and the previous.
+		mDeltaTime = (mCurrTime - mPrevTime)*mSecondsPerCount;
+	// }
+	
 	// Prepare for next frame.
 	mPrevTime = mCurrTime;
 

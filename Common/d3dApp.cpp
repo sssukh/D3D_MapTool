@@ -120,6 +120,11 @@ int D3DApp::Run()
 					// TODO : Change plane's vertex and index buffer depends on User's setting
 					// BuildPlaneGeometry(heightResource.Width,heightResource.Height,heightResource.Width,heightResource.Height);
 				}
+
+				if(mImGui->DrawSaveMapWindow())
+				{
+					SaveMapFile();
+				}
 				
 				// temporary
 				mImGui->DrawMousePlanePosWindow(mMousePosOnPlane);
@@ -1956,6 +1961,125 @@ void D3DApp::BuildSphereGeometry()
 	geo->DrawArgs["sphere"] = sphereSubmesh;
 
 	mGeometries[geo->Name] = std::move(geo);
+}
+
+void D3DApp::SaveMapFile()
+{
+	ID3D12Resource* currentHeightMap = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource.Get();
+
+	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+	
+	ThrowIfFailed(cmdListAlloc->Reset());
+
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), nullptr));
+	
+	// 높이맵 상태 전환
+	// mCommandList->ResourceBarrier(1,&CD3DX12_RESOURCE_BARRIER::Transition(
+	// 	currentHeightMap,
+	// 	D3D12_RESOURCE_STATE_COMMON,
+	// 	D3D12_RESOURCE_STATE_COPY_SOURCE));
+
+	// 크기에 맞는 버퍼를 생성하기 위해 높이맵의 정보 복사
+	D3D12_RESOURCE_DESC desc = currentHeightMap->GetDesc();
+	UINT64 bufferSize = 0;
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footPrint;
+	UINT64 rowPitch;
+	UINT numRows;
+	md3dDevice->GetCopyableFootprints(&desc, 0, 1, 0, &footPrint, &numRows, &rowPitch, &bufferSize);
+
+	// if (rowPitch != (desc.Width * bitsPerPixel / 8)) {
+	// 	// 패딩 바이트 존재 → 메모리 재정렬 필요
+	// }
+	
+	// 높이맵과 동일한 크기의 readback buffer 생성
+	CD3DX12_HEAP_PROPERTIES readbackHeap(D3D12_HEAP_TYPE_READBACK);
+	CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+	ComPtr<ID3D12Resource> readbackBuffer;
+	md3dDevice->CreateCommittedResource(
+		&readbackHeap,
+		D3D12_HEAP_FLAG_NONE,
+		&bufferDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&readbackBuffer));
+
+
+	D3D12_TEXTURE_COPY_LOCATION srcLocation = {};
+	srcLocation.pResource = currentHeightMap;
+	srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	srcLocation.SubresourceIndex = 0;
+
+	D3D12_TEXTURE_COPY_LOCATION dstLocation = {};
+	dstLocation.pResource = readbackBuffer.Get();
+	dstLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+	dstLocation.PlacedFootprint = footPrint; // 이전 단계에서 계산값 사용
+
+	mCommandList->CopyTextureRegion(
+		&dstLocation, 0, 0, 0,
+		&srcLocation, nullptr
+	);
+
+	// 복사 
+	// mCommandList->CopyResource(readbackBuffer.Get(), currentHeightMap);
+	mCommandList->Close();
+	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(1, cmdLists);
+
+	// 동기화 처리
+
+	// Create fence for upload resource
+	Microsoft::WRL::ComPtr<ID3D12Fence> uploadFence;
+	UINT64 fenceValue = 1;
+	md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&uploadFence));
+
+	HANDLE fenceEvent = CreateEventEx(nullptr, nullptr,0,EVENT_MODIFY_STATE | SYNCHRONIZE);
+
+        
+	mCommandQueue->Signal(uploadFence.Get(),fenceValue);
+
+
+	// GPU가 펜스 값에 도달했는지 확인
+	if (uploadFence->GetCompletedValue() < fenceValue) {
+		uploadFence->SetEventOnCompletion(fenceValue, fenceEvent);
+		WaitForSingleObject(fenceEvent, INFINITE);
+	}
+
+	void* mappedData = nullptr;
+	D3D12_RANGE readRange{0, bufferSize};
+	readbackBuffer->Map(0, &readRange, &mappedData);
+
+	// DirectXTex 라이브러리 활용
+
+	DirectX::Image image;
+	image.width = desc.Width;
+	image.height = desc.Height;
+	image.format = desc.Format;
+	image.pixels = static_cast<uint8_t*>(mappedData);
+	image.rowPitch = rowPitch;
+	// image.slicePitch = 0;
+
+	HRESULT hr = DirectX::SaveToWICFile(
+		image,
+		DirectX::WIC_FLAGS_IGNORE_SRGB,
+		GetWICCodec(DirectX::WIC_CODEC_PNG),
+		L"output.png");
+
+	if(FAILED(hr))
+	{
+		HRESULT ddsHr = DirectX::SaveToDDSFile(
+			image,
+			DirectX::DDS_FLAGS_FORCE_DX10_EXT | DDS_FLAGS_FORCE_RGB,
+			L"output.dds"
+		);
+
+		if(FAILED(ddsHr))
+		{
+			MessageBoxA(nullptr,"Can't save texture","DirectXError",MB_OK | MB_ICONERROR);
+		}
+	}
+
+	
+	readbackBuffer->Unmap(0,nullptr);
 }
 
 

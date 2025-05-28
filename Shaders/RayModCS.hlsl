@@ -34,12 +34,20 @@ void ModCS(uint3 tid : SV_DispatchThreadID)
 
     int2 delta = uv - int2(tid.x,tid.y);
 
+    float deltaSq = sqrt(dot(float2(delta),float2(delta)));
+
+    float denom = max(IntersectRange - MaxStrengthRange, 1.0);
+
+    float heightModR = saturate((IntersectRange - deltaSq)/denom);
+
+    /*
     float deltaSq = dot(float2(delta),float2(delta));
 
     float denom = max(IntersectRange*IntersectRange - MaxStrengthRange*MaxStrengthRange, 1.0);
 
     float heightModR = saturate((IntersectRange*IntersectRange - deltaSq)/denom);
-    
+    */
+
     float4 texMod = gHeightMap[tid.xy];
 
     texMod.r = min(texMod.r + heightModR * ModifyingStrength, 1.0f);

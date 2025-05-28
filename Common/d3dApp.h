@@ -203,6 +203,8 @@ private:
 	void OnMouseInput();
 
 	void BuildSphereGeometry();
+
+	void SaveMapFile();
 protected:
 
     static D3DApp* mApp;

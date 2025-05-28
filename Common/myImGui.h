@@ -85,8 +85,10 @@ public:
     bool DrawTextureOpenWindow(std::wstring& rFileDirectory );
 
     void DrawHeightModVarWindow(UINT& retIntersectRange, UINT& retMaxStrengthRange, float& retModStrength);
-// private:
+    
     std::wstring OpenFileDialog();
+
+    bool DrawSaveMapWindow();
     
 private:
     HWND mHwnd = nullptr;

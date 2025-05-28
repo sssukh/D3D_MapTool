@@ -228,7 +228,7 @@ private:
 
     UINT mMaxStrengthRange = 5;
 
-    float mModifingStrength = 0.0025f;
+    float mModifingStrength = 0.0026f;
 
     std::unique_ptr<UploadBuffer<HeightModifyingInfo>> modHeightCB = nullptr;
 
