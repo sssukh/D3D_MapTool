@@ -204,7 +204,7 @@ bool D3DApp::Initialize()
 	UINT width = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Width;
 	UINT height = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Height;
 	
-	BuildPlaneGeometry(width,height,20,20);
+	BuildPlaneGeometry(width,height,100,100);
 	BuildSphereGeometry();
 	BuildMaterials();
 	BuildRenderItems();
@@ -2049,15 +2049,13 @@ void D3DApp::SaveMapFile()
 	readbackBuffer->Map(0, &readRange, &mappedData);
 
 	// DirectXTex 라이브러리 활용
-
 	DirectX::Image image;
 	image.width = desc.Width;
 	image.height = desc.Height;
 	image.format = desc.Format;
 	image.pixels = static_cast<uint8_t*>(mappedData);
 	image.rowPitch = rowPitch;
-	// image.slicePitch = 0;
-
+	
 	HRESULT hr = DirectX::SaveToWICFile(
 		image,
 		DirectX::WIC_FLAGS_IGNORE_SRGB,
@@ -2066,15 +2064,17 @@ void D3DApp::SaveMapFile()
 
 	if(FAILED(hr))
 	{
+		MessageBoxA(nullptr,"Can't save texture in png","DirectXError",MB_OK | MB_ICONERROR);
+		
 		HRESULT ddsHr = DirectX::SaveToDDSFile(
 			image,
-			DirectX::DDS_FLAGS_FORCE_DX10_EXT | DDS_FLAGS_FORCE_RGB,
+			DDS_FLAGS_FORCE_RGB,
 			L"output.dds"
 		);
 
 		if(FAILED(ddsHr))
 		{
-			MessageBoxA(nullptr,"Can't save texture","DirectXError",MB_OK | MB_ICONERROR);
+			MessageBoxA(nullptr,"Can't save texture in dds","DirectXError",MB_OK | MB_ICONERROR);
 		}
 	}
 
