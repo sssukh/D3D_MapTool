@@ -24,12 +24,12 @@
 
 
 
-Texture2D    gDiffuseMap[4] : register(t0);
+Texture2D    gDiffuseMap[10] : register(t0);
 
-Texture2D    gHeightMap : register(t4);
-Texture2D    gNormalMap : register(t5);
+Texture2D    gHeightMap : register(t10);
+Texture2D    gNormalMap : register(t11);
 
-TextureCube gCubeMap : register(t6);
+TextureCube gCubeMap : register(t12);
 
 
 SamplerState gsamPointWrap        : register(s0);

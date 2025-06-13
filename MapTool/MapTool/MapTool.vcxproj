@@ -145,6 +145,7 @@
     <ClInclude Include="..\..\Common\myRay.h" />
     <ClInclude Include="..\..\Common\myTexture.h" />
     <ClInclude Include="..\..\Common\NormalMapGenerator.h" />
+    <ClInclude Include="..\..\Common\ShadowMap.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
     <ClInclude Include="..\..\Common\UploadHelper.h" />
     <ClInclude Include="..\..\ImGui\imconfig.h" />
@@ -249,6 +250,7 @@
     </ClCompile>
     <ClCompile Include="..\..\Common\myTexture.cpp" />
     <ClCompile Include="..\..\Common\NormalMapGenerator.cpp" />
+    <ClCompile Include="..\..\Common\ShadowMap.cpp" />
     <ClCompile Include="..\..\Common\UploadHelper.cpp" />
     <ClCompile Include="..\..\ImGui\imgui.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_demo.cpp" />

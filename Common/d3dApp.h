@@ -22,6 +22,7 @@
 #include "myImGui.h"
 #include "myTexture.h"
 
+class ShadowMap;
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
@@ -36,6 +37,7 @@ enum class RenderType
 {
 	Opaque =0,
 	Sky = 1,
+	Debug = 2,
 	Count
 };
 
@@ -175,7 +177,7 @@ private:
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList,const std::vector<RenderItem*>& ritems);
 	
-	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers();
 
 	// Update Scene by moving Camera
 	void UpdateScene(float dt);
@@ -202,9 +204,18 @@ private:
 
 	void OnMouseInput();
 
-	void BuildSphereGeometry();
+	void BuildShapeGeometry();
 
 	void SaveMapFile();
+
+	void DrawSceneToShadowMap();
+
+	void AnimateLights(const GameTimer& gt);
+
+	void UpdateShadowPassCB(const GameTimer& gt);
+
+	void UpdateShadowTransform(const GameTimer& gt);
+	
 protected:
 
     static D3DApp* mApp;
@@ -306,7 +317,7 @@ private:
 	std::vector<RenderItem*> mRitemLayer[(int)RenderType::Count];
 
 	PassConstants mMainPassCB;
-	PassConstants mReflectedPassCB;
+	PassConstants mShadowPassCB;
 
 	XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };
 
@@ -348,6 +359,13 @@ private:
 	
 	UINT mMaxNormalCount = 2;
 
+	UINT mShadowMapHeapIndex = 0;
+	
+	UINT mNullCubeSrvIndex = 0;
+	UINT mNullTexSrvIndex = 0;
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
+	
 	std::wstring mHeightMapDirectory;
 	
 	std::unique_ptr<myTexture> mNewHeightMap = nullptr;
@@ -355,5 +373,24 @@ private:
 	bool bIsHeightMapDirty = false;
 
 	UINT mCurrentUAVDescriptorOffset = Descriptors_Per_Frame;
+
+	std::unique_ptr<ShadowMap> mShadowMap;
+
+	DirectX::BoundingSphere mSceneBounds;
+
+	float mLightNearZ = 0.0f;
+	float mLightFarZ = 0.0f;
+	XMFLOAT3 mLightPosW;
+	XMFLOAT4X4 mLightView = MathHelper::Identity4x4();
+	XMFLOAT4X4 mLightProj = MathHelper::Identity4x4();
+	XMFLOAT4X4 mShadowTransform = MathHelper::Identity4x4();
+
+	float mLightRotationAngle = 0.0f;
+	XMFLOAT3 mBaseLightDirections[3] = {
+		XMFLOAT3(0.57735f, -0.57735f, 0.57735f),
+		XMFLOAT3(-0.57735f, -0.57735f, 0.57735f),
+		XMFLOAT3(0.0f, -0.707f, -0.707f)
+	};
+	XMFLOAT3 mRotatedLightDirections[3];
 };
 

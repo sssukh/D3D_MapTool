@@ -10,6 +10,7 @@ C:\MapTool\Common\myImGui.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\myImGui.obj
 C:\MapTool\Common\myRay.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\myRay.obj
 C:\MapTool\Common\myTexture.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\myTexture.obj
 C:\MapTool\Common\NormalMapGenerator.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\NormalMapGenerator.obj
+C:\MapTool\Common\ShadowMap.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\ShadowMap.obj
 C:\MapTool\Common\UploadHelper.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\UploadHelper.obj
 C:\MapTool\ImGui\imgui.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui.obj
 C:\MapTool\ImGui\imgui_demo.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_demo.obj
