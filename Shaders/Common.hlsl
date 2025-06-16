@@ -91,3 +91,12 @@ cbuffer cbMaterial : register(b2)
     float    gRoughness;
 	float4x4 gMatTransform;
 };
+
+float CalcTessFactor(float4 centerPos)
+{
+	float d = distance(centerPos,float4(gEyePosW,1.0f));
+
+	const float d0 = 100.0f;
+	const float d1 = 500.0f;
+	return clamp(20.0f*saturate( (d1-d)/(d1-d0) ),3.0f,64.0f);
+}

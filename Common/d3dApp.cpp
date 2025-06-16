@@ -193,8 +193,7 @@ bool D3DApp::Initialize()
 
 	mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(),2048,2048);
 
-	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	mSceneBounds.Radius = sqrtf(10.0f*10.0f + 15.0f*15.0f);
+	
 	
 	// Init ImGui
 	InitImGui();
@@ -209,6 +208,11 @@ bool D3DApp::Initialize()
 	// mNormalMapGenerator need to be initialized by SetNewHeightMap() at BuildDescriptorHeaps().
 	UINT width = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Width;
 	UINT height = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Height;
+
+	UINT halfWid = width/2;
+	UINT halfHeight = height/2;
+	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	mSceneBounds.Radius = sqrtf(halfWid*halfWid + halfHeight*halfHeight);
 	
 	BuildPlaneGeometry(width,height,100,100);
 	BuildShapeGeometry();
@@ -475,8 +479,7 @@ void D3DApp::Draw(const GameTimer& gt)
 	// Specify the buffers we are going to render to.
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-	if(mIsWireFrameMode)
-		mCommandList->SetPipelineState(mPSOs["opaqueWireFrame"].Get());
+
 
 	// different passCB has set at shadowMap Drawing.
 	// So change it
@@ -485,7 +488,12 @@ void D3DApp::Draw(const GameTimer& gt)
 
 	// draw objects
 	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
+	if(mIsWireFrameMode)
+		mCommandList->SetPipelineState(mPSOs["opaqueWireFrame"].Get());
 	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs["opaqueTri"].Get());
+	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::OpaqueTri]);
 	
 	mCommandList->SetPipelineState(mPSOs["debug"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Debug]);
@@ -1338,6 +1346,10 @@ void D3DApp::BuildShadersAndInputLayout()
 	mShaders["DS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"DS","ds_5_0");
 	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
 
+	mShaders["triVS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShaderTriangle.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["triPS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShaderTriangle.hlsl", nullptr, "PS", "ps_5_1");
+
+	
 	// computing shaders
 	mShaders["normalCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\NormalMapCS.hlsl",nullptr,"NormalCS","cs_5_0");
 	mShaders["rayIntersectCS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\RayIntersectCS.hlsl",nullptr,"IntersectCS","cs_5_0");
@@ -1354,6 +1366,9 @@ void D3DApp::BuildShadersAndInputLayout()
 	mShaders["shadowHS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "HS", "hs_5_0");
 	mShaders["shadowDS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "DS", "ds_5_0");
 
+	mShaders["shadowTriVS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\ShadowsTriangle.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["shadowOpaqueTriPS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\ShadowsTriangle.hlsl", nullptr, "PS", "ps_5_1");
+	
 	// Debug
 	mShaders["debugVS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\ShadowDebug.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["debugPS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\ShadowDebug.hlsl", nullptr, "PS", "ps_5_1");
@@ -1425,6 +1440,7 @@ void D3DApp::BuildPSOs()
 	normalPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&normalPSO,IID_PPV_ARGS(&mPSOs["normalMapping"])));
 
+	// sky pass
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = opaquePsoDesc;
 	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
@@ -1454,7 +1470,8 @@ void D3DApp::BuildPSOs()
 
 	smapPsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
 	smapPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	smapPsoDesc.RasterizerState.DepthBias = 100000;
+	smapPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	smapPsoDesc.RasterizerState.DepthBias = 100;
 	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
 	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
 	smapPsoDesc.pRootSignature = mRootSignature.Get();
@@ -1491,6 +1508,43 @@ void D3DApp::BuildPSOs()
 	smapPsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque"])));
 
+	// PSO for shadow map pass.
+	// Just for now, change primitive topology into patchlist(because only patchlist obj exist)
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC smapTriPsoDesc = {};
+	ZeroMemory(&smapTriPsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+
+	smapTriPsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+	smapTriPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	smapTriPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+	smapTriPsoDesc.RasterizerState.DepthBias = 100;
+	smapTriPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
+	smapTriPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
+	smapTriPsoDesc.pRootSignature = mRootSignature.Get();
+	smapTriPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["shadowTriVS"]->GetBufferPointer()),
+		mShaders["shadowTriVS"]->GetBufferSize()
+	};
+	smapPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["shadowOpaqueTriPS"]->GetBufferPointer()),
+		mShaders["shadowOpaqueTriPS"]->GetBufferSize()
+	};
+	
+	// Shadow map pass does not have a render target.
+	smapTriPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
+	smapTriPsoDesc.NumRenderTargets = 0;
+	
+	smapTriPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	smapTriPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	smapTriPsoDesc.SampleMask = UINT_MAX;
+	smapTriPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	smapTriPsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	smapTriPsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	smapTriPsoDesc.DSVFormat = mDepthStencilFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapTriPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque_tri"])));
+	
+
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPsoDesc = {};
 	ZeroMemory(&debugPsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 
@@ -1520,6 +1574,37 @@ void D3DApp::BuildPSOs()
 	debugPsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	debugPsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&debugPsoDesc, IID_PPV_ARGS(&mPSOs["debug"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueTriPsoDesc = {};
+
+	//
+	// PSO for opaque objects.
+	//
+	ZeroMemory(&opaqueTriPsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+	opaqueTriPsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+	opaqueTriPsoDesc.pRootSignature = mRootSignature.Get();
+	opaqueTriPsoDesc.VS = 
+	{ 
+		reinterpret_cast<BYTE*>(mShaders["triVS"]->GetBufferPointer()), 
+		mShaders["triVS"]->GetBufferSize()
+	};
+	opaqueTriPsoDesc.PS = 
+	{ 
+		reinterpret_cast<BYTE*>(mShaders["triPS"]->GetBufferPointer()),
+		mShaders["triPS"]->GetBufferSize()
+	};
+	opaqueTriPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaqueTriPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaqueTriPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	opaqueTriPsoDesc.SampleMask = UINT_MAX;
+	opaqueTriPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaqueTriPsoDesc.NumRenderTargets = 1;
+	opaqueTriPsoDesc.RTVFormats[0] = mBackBufferFormat;
+	opaqueTriPsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	opaqueTriPsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	opaqueTriPsoDesc.DSVFormat = mDepthStencilFormat;
+	
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueTriPsoDesc, IID_PPV_ARGS(&mPSOs["opaqueTri"])));
 }
 
 void D3DApp::BuildFrameResources()
@@ -1711,17 +1796,17 @@ void D3DApp::BuildRenderItems()
 	mAllRitems.push_back(std::move(quadRitem));
 
 	auto boxRitem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(10.0f, 1.0f, 10.0f)*XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(10.0f, 1.0f, 10.0f)*XMMatrixTranslation(0.0f, 50.0f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
 	boxRitem->ObjCBIndex = 3;
 	boxRitem->Mat = mMaterials["bricks"].get();
 	boxRitem->Geo = mGeometries["shapeGeo"].get();
-	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderType::Opaque].push_back(boxRitem.get());
+	mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
 	mAllRitems.push_back(std::move(boxRitem));
 }
 
@@ -2332,6 +2417,10 @@ void D3DApp::DrawSceneToShadowMap()
 	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
 
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs["shadow_opaque_tri"].Get());
+
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::OpaqueTri]);
 
 	// Change back to GENERIC_READ so we can read the texture in a shader.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),

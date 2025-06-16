@@ -35,9 +35,10 @@ const UINT Descriptors_Per_Frame =30;
 
 enum class RenderType
 {
-	Opaque =0,
-	Sky = 1,
-	Debug = 2,
+	Opaque = 0,
+	OpaqueTri = 1,
+	Sky = 2,
+	Debug = 3,
 	Count
 };
 

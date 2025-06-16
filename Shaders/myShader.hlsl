@@ -29,14 +29,7 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
-float CalcTessFactor(float4 centerPos)
-{
-	float d = distance(centerPos,float4(gEyePosW,1.0f));
 
-	const float d0 = 100.0f;
-	const float d1 = 500.0f;
-	return clamp(20.0f*saturate( (d1-d)/(d1-d0) ),3.0f,64.0f);
-}
 
 struct PatchTess
 {
@@ -79,7 +72,7 @@ struct HullOut
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("ConstantHS")]
-[maxtessfactor(64.0f)]
+[maxtessfactor(3.0f)]
 HullOut HS(InputPatch<VertexOut, 4> p, 
 		   uint i : SV_OutputControlPointID,
 		   uint patchId : SV_PrimitiveID)
