@@ -89,7 +89,8 @@ HullOut HS(InputPatch<VertexOut, 4> p,
 struct DomainOut
 {
 	float4 PosH    : SV_POSITION;
-	float3 PosW    : POSITION;
+	float4 ShadowPosH : POSITION0;
+	float3 PosW    : POSITION1;
 	float3 NormalW : NORMAL;
 	float2 TexC    : TEXCOORD;
 };
@@ -148,6 +149,8 @@ DomainOut DS(PatchTess patchTess,
 	dout.NormalW = mul(normal, (float3x3)gWorld);
 	dout.TexC = texC.xy;
 
+	dout.ShadowPosH = mul(posW,gShadowTransform);
+
 	return dout;
 }
 
@@ -167,10 +170,14 @@ float4 PS(DomainOut pin) : SV_Target
 
     // Light terms.
     float4 ambient = gAmbientLight*diffuseAlbedo;
+	
+	// Only the first light casts a shadow.
+    float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
+    shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
 
     const float shininess = 1.0f - gRoughness;
     Material mat = { diffuseAlbedo, gFresnelR0, shininess };
-    float3 shadowFactor = 1.0f;
+    // float3 shadowFactor = 1.0f;
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
         pin.NormalW, toEyeW, shadowFactor);
 
@@ -192,9 +199,6 @@ float4 PS(DomainOut pin) : SV_Target
 		litColor.b = 255.0f;
 	}
 
-	// temporary code for check
-	// if(length(PosOnPlane - gMousePosOnPlane)<15)
-	//	litColor.r = 255.0f;
 
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;

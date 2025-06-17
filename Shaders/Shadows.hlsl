@@ -124,11 +124,11 @@ DomainOut DS(PatchTess patchTess,
 	
 	// 사각형 패치 보간 (Bilinear)
 	float3 posTop = lerp(quad[0].PosL, quad[1].PosL, uv.x);
-	float3 posBottom = lerp(quad[3].PosL, quad[2].PosL, uv.x);
+	float3 posBottom = lerp(quad[2].PosL, quad[3].PosL, uv.x);
 	float3 p = lerp(posTop, posBottom, uv.y);
 
 	float2 texTop = lerp(quad[0].TexC, quad[1].TexC, uv.x);
-	float2 texBottom = lerp(quad[3].TexC, quad[2].TexC, uv.x);
+	float2 texBottom = lerp(quad[2].TexC, quad[3].TexC, uv.x);
 	float2 t = lerp(texTop, texBottom, uv.y);
 
 
