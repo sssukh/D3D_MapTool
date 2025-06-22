@@ -13,16 +13,24 @@ struct VertexOut
     float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
 	float2 TexC    : TEXCOORD;
+	nointerpolation uint MatIndex  : MATINDEX;
 };
 
 
 
-VertexOut VS(VertexIn vin)
+VertexOut VS(VertexIn vin, uint instanceID : SV_InstanceID) 
 {
 	VertexOut vout = (VertexOut)0.0f;
 
+	InstanceData instData = gInstanceData[instanceID];
+	float4x4 world = instData.World;
+	float4x4 texTransform = instData.TexTransform;
+	uint matIndex = instData.MaterialIndex;
+
+	MaterialData matData = gMaterialData[matIndex];
+
 	// Transform to world space.
-	float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+	float4 posW = mul(float4(vin.PosL, 1.0f), world);
 	vout.PosW = posW.xyz;
 
 
@@ -30,11 +38,12 @@ VertexOut VS(VertexIn vin)
 	vout.PosH = mul(posW, gViewProj);
 	
 	// Output vertex attributes for interpolation across triangle.
-	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-	vout.TexC = mul(texC, gMatTransform).xy;
+	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), texTransform);
+	vout.TexC = mul(texC, matData.MatTransform).xy;
 	
-	vout.NormalW = mul(float4(vin.NormalL,1.0f), gWorld).xyz;
+	vout.NormalW = mul(float4(vin.NormalL,1.0f), world).xyz;
 	
+	vout.MatIndex = instData.MaterialIndex;
 	
     return vout;
 }
@@ -165,9 +174,13 @@ DomainOut DS(PatchTess patchTess,
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    float4 diffuseAlbedo = gDiffuseMap[gTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-	
+	MaterialData matData = gMaterialData[pin.MatIndex];
+	float4 mDiffuseAlbedo = matData.DiffuseAlbedo;
+	float3 mFresnelR0 = matData.FresnelR0;
+	float  mRoughness = matData.Roughness;
+	uint diffuseTexIndex = matData.DiffuseMapIndex;
     
+	float4 diffuseAlbedo = gDiffuseMap[gTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * mDiffuseAlbedo;
 
     // Vector from point being lit to eye. 
 	float3 toEyeW = gEyePosW - pin.PosW;
@@ -177,8 +190,8 @@ float4 PS(VertexOut pin) : SV_Target
     // Light terms.
     float4 ambient = gAmbientLight*diffuseAlbedo;
 
-    const float shininess = 1.0f - gRoughness;
-    Material mat = { diffuseAlbedo, gFresnelR0, shininess };
+    const float shininess = 1.0f - mRoughness;
+    Material mat = { diffuseAlbedo, mFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
         pin.NormalW, toEyeW, shadowFactor);

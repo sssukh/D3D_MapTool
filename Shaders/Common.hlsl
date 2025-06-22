@@ -22,7 +22,30 @@
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
 
+struct InstanceData
+{
+	float4x4 World;
+	float4x4 TexTransform;
+	uint     MaterialIndex;
+	uint     InstPad0;
+	uint     InstPad1;
+	uint     InstPad2;
+};
 
+struct MaterialData
+{
+	float4   DiffuseAlbedo;
+	float3   FresnelR0;
+	float    Roughness;
+	float4x4 MatTransform;
+	uint     DiffuseMapIndex;
+	uint     MatPad0;
+	uint     MatPad1;
+	uint     MatPad2;
+};
+
+StructuredBuffer<InstanceData> gInstanceData : register(t0, space1);
+StructuredBuffer<MaterialData> gMaterialData : register(t1, space1);
 
 Texture2D    gDiffuseMap[10] : register(t0);
 
@@ -41,14 +64,16 @@ SamplerState gsamAnisotropicClamp : register(s5);
 SamplerComparisonState gsamShadow			  : register(s6);
 
 // Constant data that varies per frame.
+/*
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
 	float4x4 gTexTransform;
 };
+*/
 
 // Constant data that varies per material.
-cbuffer cbPass : register(b1)
+cbuffer cbPass : register(b0)
 {
     float4x4 gView;
     float4x4 gInvView;
@@ -86,6 +111,7 @@ cbuffer cbPass : register(b1)
 	uint gMaxStrengthRange;
 };
 
+/*
 cbuffer cbMaterial : register(b2)
 {
 	float4   gDiffuseAlbedo;
@@ -93,6 +119,7 @@ cbuffer cbMaterial : register(b2)
     float    gRoughness;
 	float4x4 gMatTransform;
 };
+*/
 
 float CalcTessFactor(float4 centerPos)
 {

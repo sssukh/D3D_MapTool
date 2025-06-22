@@ -12,11 +12,12 @@ struct VertexOut
     float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
 	float2 TexC    : TEXCOORD;
+	InstanceData InstData : INSTDATA;
 };
 
 
 
-VertexOut VS(VertexIn vin)
+VertexOut VS(VertexIn vin, uint instanceID : SV_InstanceID)
 {
 	VertexOut vout = (VertexOut)0.0f;
 
@@ -25,7 +26,9 @@ VertexOut VS(VertexIn vin)
 	vout.NormalL = vin.NormalL;
 	
 	vout.TexC = vin.TexC;
-	
+		
+	vout.InstData = gInstanceData[instanceID];	
+
     return vout;
 }
 
@@ -39,18 +42,21 @@ struct PatchTess
 
 PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_PrimitiveID)
 {
+	
+	float4x4 world = patch[0].InstData.World;
+
 	PatchTess pt;
 	
 	float3 centerL = 0.25f*(patch[0].PosL + patch[1].PosL + patch[2].PosL + patch[3].PosL);
-	float4 centerW = mul(float4(centerL, 1.0f), gWorld);
+	float4 centerW = mul(float4(centerL, 1.0f), world);
 	
 	
 	// Uniformly tessellate the patch.
 
-	pt.EdgeTess[0] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[2].PosL,1.0f),gWorld));
-	pt.EdgeTess[1] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[1].PosL,1.0f),gWorld));
-	pt.EdgeTess[2] = CalcTessFactor(0.5f * mul(float4(patch[1].PosL + patch[3].PosL,1.0f),gWorld));
-	pt.EdgeTess[3] = CalcTessFactor(0.5f * mul(float4(patch[2].PosL + patch[3].PosL,1.0f),gWorld));
+	pt.EdgeTess[0] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[2].PosL,1.0f),world));
+	pt.EdgeTess[1] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[1].PosL,1.0f),world));
+	pt.EdgeTess[2] = CalcTessFactor(0.5f * mul(float4(patch[1].PosL + patch[3].PosL,1.0f),world));
+	pt.EdgeTess[3] = CalcTessFactor(0.5f * mul(float4(patch[2].PosL + patch[3].PosL,1.0f),world));
 	
 	float tess = CalcTessFactor(centerW);
 
@@ -65,6 +71,7 @@ struct HullOut
 	float3 PosL    : POSITION;
 	float3 NormalL : NORMAL;
 	float2 TexC    : TEXCOORD;
+	InstanceData InstData : INSTDATA;
 };
 
 [domain("quad")]
@@ -72,7 +79,7 @@ struct HullOut
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("ConstantHS")]
-[maxtessfactor(3.0f)]
+[maxtessfactor(64.0f)]
 HullOut HS(InputPatch<VertexOut, 4> p, 
 		   uint i : SV_OutputControlPointID,
 		   uint patchId : SV_PrimitiveID)
@@ -82,6 +89,7 @@ HullOut HS(InputPatch<VertexOut, 4> p,
 	hout.PosL = p[i].PosL;
 	hout.NormalL = p[i].NormalL;
 	hout.TexC = p[i].TexC;
+	hout.InstData = p[i].InstData;
 	
 	return hout;
 }
@@ -93,6 +101,7 @@ struct DomainOut
 	float3 PosW    : POSITION1;
 	float3 NormalW : NORMAL;
 	float2 TexC    : TEXCOORD;
+	InstanceData InstData : INSTDATA;
 };
 
 
@@ -103,6 +112,11 @@ DomainOut DS(PatchTess patchTess,
 			 float2 uv : SV_DomainLocation, 
 			 const OutputPatch<HullOut, 4> quad)
 {
+
+	InstanceData instData = quad[0].InstData;
+	float4x4 world = instData.World;
+	float4x4 texTransform = instData.TexTransform;
+
 	DomainOut dout;
 	
 	// For quad patch
@@ -141,15 +155,17 @@ DomainOut DS(PatchTess patchTess,
 	float4 normalMap = gNormalMap.SampleLevel(gsamAnisotropicWrap, t, 0);
 	float3 normal = float3(normalMap.rgb);
 
-	float4 texC = mul(float4(t, 0.0f, 1.0f), gTexTransform);
+	float4 texC = mul(float4(t, 0.0f, 1.0f), texTransform);
 
-	float4 posW = mul(float4(p, 1.0f), gWorld);
+	float4 posW = mul(float4(p, 1.0f), world);
 	dout.PosH = mul(posW, gViewProj);
 	dout.PosW = (float3)posW;
-	dout.NormalW = mul(normal, (float3x3)gWorld);
+	dout.NormalW = mul(normal, (float3x3)world);
 	dout.TexC = texC.xy;
 
 	dout.ShadowPosH = mul(posW,gShadowTransform);
+
+	dout.InstData = quad[0].InstData;
 
 	return dout;
 }
@@ -158,7 +174,14 @@ DomainOut DS(PatchTess patchTess,
 
 float4 PS(DomainOut pin) : SV_Target
 {
-    float4 diffuseAlbedo = gDiffuseMap[gTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+	InstanceData instData = pin.InstData;
+	MaterialData matData = gMaterialData[instData.MaterialIndex];
+	float4 mDiffuseAlbedo = matData.DiffuseAlbedo;
+	float3 mFresnelR0 = matData.FresnelR0;
+	float  mRoughness = matData.Roughness;
+	uint diffuseTexIndex = matData.DiffuseMapIndex;
+
+    float4 diffuseAlbedo = gDiffuseMap[gTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * mDiffuseAlbedo;
 	
     // Interpolating normal can unnormalize it, so renormalize it.
     pin.NormalW = normalize(pin.NormalW);
@@ -175,8 +198,8 @@ float4 PS(DomainOut pin) : SV_Target
     float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
     shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
 
-    const float shininess = 1.0f - gRoughness;
-    Material mat = { diffuseAlbedo, gFresnelR0, shininess };
+    const float shininess = 1.0f - mRoughness;
+    Material mat = { diffuseAlbedo, mFresnelR0, shininess };
     // float3 shadowFactor = 1.0f;
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
         pin.NormalW, toEyeW, shadowFactor);

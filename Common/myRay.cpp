@@ -410,6 +410,8 @@ void myRay::BuildModResource()
     texDesc.DepthOrArraySize = 1;
     texDesc.MipLevels = 1;
     texDesc.Format = mTexFormat;
+    // texDesc.Format = DXGI_FORMAT_R8G8B8A8_TYPELESS;
+    
     texDesc.SampleDesc.Count = 1;
     texDesc.SampleDesc.Quality = 0;
     texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;

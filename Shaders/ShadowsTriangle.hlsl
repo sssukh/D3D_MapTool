@@ -15,28 +15,36 @@ struct VertexOut
 {
 	float4 PosH    : SV_POSITION;
 	float2 TexC    : TEXCOORD;
+	InstanceData InstData : INSTDATA;
 };
 
 
 
 
-VertexOut VS(VertexIn vin)
+VertexOut VS(VertexIn vin, uint instanceID : SV_InstanceID)
 {
+	InstanceData instData = gInstanceData[instanceID];
+	float4x4 world = instData.World;
+	float4x4 texTransform = instData.TexTransform;
+	uint matIndex = instData.MaterialIndex;
+
+	MaterialData matData = gMaterialData[matIndex];
 	VertexOut vout = (VertexOut)0.0f;
 
 	// MaterialData matData = gMaterialData[gMaterialIndex];
 	
 	
     // Transform to world space.
-    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+    float4 posW = mul(float4(vin.PosL, 1.0f), world);
 
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
 	
 	// Output vertex attributes for interpolation across triangle.
-	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-	vout.TexC = mul(texC, gMatTransform).xy;
+	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), texTransform);
+	vout.TexC = mul(texC, matData.MatTransform).xy;
 		
+	vout.InstData = instData;
 
     return vout;
 }
@@ -48,9 +56,9 @@ VertexOut VS(VertexIn vin)
 void PS(VertexOut pin)
 {
 	// Fetch the material data.
-	// MaterialData matData = gMaterialData[gMaterialIndex];
-	float4 diffuseAlbedo = gDiffuseAlbedo;
-    uint diffuseMapIndex = gTexIndex;
+	MaterialData matData = gMaterialData[pin.InstData.MaterialIndex];
+	float4 diffuseAlbedo = matData.DiffuseAlbedo;
+	uint diffuseMapIndex = matData.DiffuseMapIndex;
 	
 	// Dynamically look up the texture in the array.
 	diffuseAlbedo *= gDiffuseMap[diffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);

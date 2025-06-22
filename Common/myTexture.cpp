@@ -19,13 +19,19 @@ HRESULT myTexture::CreateDDSTextureFromFile(ID3D12Device* pD3D12Device, ID3D12Gr
     return DirectX::CreateDDSTextureFromFile12(pD3D12Device, pD3D12CommandList,Filename.c_str(),Resource,UploadHeap);
 }
 
-HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList)
+HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList, bool bFmtTypeless)
 {
      DirectX::ScratchImage image;
     HRESULT result = GetScratchImage(Filename,&image);
 
     if(SUCCEEDED(result))
     {
+        // 포맷을 typeless로 설정이 필요하면 
+        // if(bFmtTypeless)
+        // {
+        //     image = SetTypelessFormat(image);
+        // }
+        
         // resource 받아오기
         result = DirectX::CreateTexture(pD3D12Device,image.GetMetadata(),&Resource);
             
@@ -84,20 +90,24 @@ HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12G
     return result;
 }
 
-HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList, ID3D12CommandQueue* pD3D12CommandQueue, ID3D12CommandAllocator* pD3D12ComAlloc)
+HRESULT myTexture::CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList, ID3D12CommandQueue* pD3D12CommandQueue, ID3D12CommandAllocator* pD3D12ComAlloc , bool bFmtTypeless)
 {
     DirectX::ScratchImage image;
     HRESULT result = GetScratchImage(Filename,&image);
 
     if(SUCCEEDED(result))
     {
+        // 포맷을 typeless로 설정이 필요하면 
+        // if(bFmtTypeless)
+        // {
+        //     image = SetTypelessFormat(image);
+        // }
+        
         // resource 받아오기
         result = DirectX::CreateTexture(pD3D12Device,image.GetMetadata(),&Resource);
             
         if(FAILED(result))
             return result;
-
-       
         
         std::vector<D3D12_SUBRESOURCE_DATA> subresources;
         
@@ -206,7 +216,7 @@ HRESULT myTexture::GetScratchImage(std::wstring pFilename, DirectX::ScratchImage
  
 }
 
-void myTexture::CreateShaderResourceView(ID3D12Device* pD3D12Device, ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize)
+void myTexture::CreateShaderResourceView(ID3D12Device* pD3D12Device, ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize, bool bIsTypeless)
 {
     mD3D12DescriptorHeap = pDescriptorHeap;
     mHandleOffset = pOffset;
@@ -222,9 +232,17 @@ void myTexture::CreateShaderResourceView(ID3D12Device* pD3D12Device, ID3D12Descr
     // auto iceTex = mTextures["iceTex"]->Resource;
     // auto white1x1Tex = mTextures["white1x1Tex"]->Resource;
 
+    DXGI_FORMAT format = Resource->GetDesc().Format;
+
+    
+    if(bIsTypeless)
+    {
+        DXGI_FORMAT unormFmt = DirectX::MakeTypelessUNORM(Resource->GetDesc().Format);
+        format = unormFmt;
+    }
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = Resource->GetDesc().Format;
+    srvDesc.Format = format;
     srvDesc.ViewDimension = bIsCubeMap?D3D12_SRV_DIMENSION_TEXTURECUBE : D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MostDetailedMip = 0;
     srvDesc.Texture2D.MipLevels = Resource->GetDesc().MipLevels;
@@ -238,6 +256,18 @@ void myTexture::Release()
     Resource->Release();
     UploadHeap->Release();
     mD3D12DescriptorHeap->Release();
+}
+
+DirectX::ScratchImage myTexture::SetTypelessFormat(DirectX::ScratchImage& pImage)
+{
+    DXGI_FORMAT originalFormat = pImage.GetMetadata().format;
+    DXGI_FORMAT typelessFormat = DirectX::MakeTypeless(originalFormat);
+    
+    DirectX::ScratchImage typelessImage;
+    Convert(*pImage.GetImage(0,0,0),typelessFormat,
+        DirectX::TEX_FILTER_DEFAULT,0.5f,typelessImage);
+    
+    return typelessImage;
 }
 
 

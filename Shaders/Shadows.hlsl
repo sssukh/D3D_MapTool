@@ -15,23 +15,27 @@ struct VertexOut
 {
 	float3 PosL    : POSITION;
 	float2 TexC    : TEXCOORD;
+	InstanceData InstData : INSTDATA;
 };
 
 struct HullOut
 {
 	float3 PosL    : POSITION;
 	float2 TexC    : TEXCOORD;
+	InstanceData InstData : INSTDATA;
 };
 
 struct DomainOut
 {
 	float4 PosH    : SV_POSITION;
 	float2 TexC    : TEXCOORD;
+	InstanceData InstData : INSTDATA;
 };
 
 
-VertexOut VS(VertexIn vin)
+VertexOut VS(VertexIn vin, uint instanceID : SV_InstanceID)
 {
+	InstanceData instData = gInstanceData[instanceID];
 	VertexOut vout = (VertexOut)0.0f;
 
 	// MaterialData matData = gMaterialData[gMaterialIndex];
@@ -50,6 +54,8 @@ VertexOut VS(VertexIn vin)
 
 	vout.PosL = vin.PosL;
 	vout.TexC = vin.TexC;
+	vout.InstData = instData;
+
 
     return vout;
 }
@@ -62,6 +68,9 @@ struct PatchTess
 
 PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_PrimitiveID)
 {
+	InstanceData instData = patch[0].InstData;
+	float4x4 world = instData.World;
+
 	PatchTess pt;
 
 	/*
@@ -77,15 +86,15 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 
 	
 	float3 centerL = 0.25f*(patch[0].PosL + patch[1].PosL + patch[2].PosL + patch[3].PosL);
-	float4 centerW = mul(float4(centerL, 1.0f), gWorld);
+	float4 centerW = mul(float4(centerL, 1.0f), world);
 	
 	
 	// Uniformly tessellate the patch.
 
-	pt.EdgeTess[0] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[2].PosL,1.0f),gWorld));
-	pt.EdgeTess[1] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[1].PosL,1.0f),gWorld));
-	pt.EdgeTess[2] = CalcTessFactor(0.5f * mul(float4(patch[1].PosL + patch[3].PosL,1.0f),gWorld));
-	pt.EdgeTess[3] = CalcTessFactor(0.5f * mul(float4(patch[2].PosL + patch[3].PosL,1.0f),gWorld));
+	pt.EdgeTess[0] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[2].PosL,1.0f),world));
+	pt.EdgeTess[1] = CalcTessFactor(0.5f * mul(float4(patch[0].PosL + patch[1].PosL,1.0f),world));
+	pt.EdgeTess[2] = CalcTessFactor(0.5f * mul(float4(patch[1].PosL + patch[3].PosL,1.0f),world));
+	pt.EdgeTess[3] = CalcTessFactor(0.5f * mul(float4(patch[2].PosL + patch[3].PosL,1.0f),world));
 	
 	float tess = CalcTessFactor(centerW);
 
@@ -109,6 +118,7 @@ HullOut HS(InputPatch<VertexOut,4> inputPatch,
 	HullOut hout;
 	hout.PosL = inputPatch[i].PosL;
 	hout.TexC = inputPatch[i].TexC;
+	hout.InstData = inputPatch[i].InstData;
 
 	return hout;
 
@@ -120,6 +130,10 @@ DomainOut DS(PatchTess patchTess,
 			 float2 uv : SV_DomainLocation, 
 			 const OutputPatch<HullOut, 4> quad)
 {
+	InstanceData instData = quad[0].InstData;
+	float4x4 world = instData.World;
+	float4x4 texTransform = instData.TexTransform;
+
 	DomainOut dout;
 	
 	// 사각형 패치 보간 (Bilinear)
@@ -138,13 +152,13 @@ DomainOut DS(PatchTess patchTess,
 
 	
 
-	float4 texC = mul(float4(t, 0.0f, 1.0f), gTexTransform);
+	float4 texC = mul(float4(t, 0.0f, 1.0f), texTransform);
 
-	float4 posW = mul(float4(p, 1.0f), gWorld);
+	float4 posW = mul(float4(p, 1.0f), world);
 	dout.PosH = mul(posW, gViewProj);
 	dout.TexC = texC.xy;
 
-
+	dout.InstData = quad[0].InstData;
 
 	return dout;
 }
@@ -155,9 +169,9 @@ DomainOut DS(PatchTess patchTess,
 void PS(DomainOut pin)  
 {
 	// Fetch the material data.
-	// MaterialData matData = gMaterialData[gMaterialIndex];
-	float4 diffuseAlbedo = gDiffuseAlbedo;
-    uint diffuseMapIndex = gTexIndex;
+	MaterialData matData = gMaterialData[pin.InstData.MaterialIndex];
+	float4 diffuseAlbedo = matData.DiffuseAlbedo;
+    uint diffuseMapIndex = matData.DiffuseMapIndex;
 	
 	// Dynamically look up the texture in the array.
 	diffuseAlbedo *= gDiffuseMap[diffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);

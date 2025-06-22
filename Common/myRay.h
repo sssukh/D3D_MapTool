@@ -113,7 +113,7 @@ public:
 
     void SetVertexIndexResource(ID3D12Resource* pVertexBuffer, ID3D12Resource* pIndexBuffer) { mVertexBuffer = pVertexBuffer; mIndexBuffer = pIndexBuffer;}
 
- 
+    void SetFormat(const DXGI_FORMAT pFormat) { mTexFormat = pFormat;}
     
     // dispatch
     void ExecuteRayIntersectTriangle(

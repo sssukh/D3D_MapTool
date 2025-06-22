@@ -42,10 +42,27 @@ enum class RenderType
 	Count
 };
 
+struct InstanceData
+{
+	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+	UINT MaterialIndex;
+	UINT InstancePad0;
+	UINT InstancePad1;
+	UINT InstancePad2;
+};
+
 struct RenderItem
 {
-	RenderItem() = default;
+	// RenderItem() = default;
+	RenderItem(ID3D12Device* device, UINT maxInstanceCount)
+	{
+		InstanceBuffer = std::make_unique<UploadBuffer<InstanceData>>(device, maxInstanceCount, false);
+	}
 
+	bool IsUsingBB() { return bUsingBB;}
+	void SetUsingBB(bool bUseBB) { bUsingBB = bUseBB; }
+	
 	// World matrix of the shape that describes the object's local space
 	// relative to the world space, which defines the position, orientation,
 	// and scale of the object in the world.
@@ -68,11 +85,19 @@ struct RenderItem
 	// Primitive topology.
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
+	BoundingBox Bounds;
+	std::vector<InstanceData> Instances;
+	
 	// DrawIndexedInstanced parameters.
 	UINT IndexCount = 0;
+	UINT InstanceCount=0;
 	UINT StartIndexLocation = 0;
 	int BaseVertexLocation = 0;
 	
+	std::unique_ptr<UploadBuffer<InstanceData>> InstanceBuffer = nullptr;
+
+private:
+	bool bUsingBB = false;
 };
 
 struct HeightMapBuffer
@@ -81,7 +106,7 @@ struct HeightMapBuffer
 	int mCurrentUsingIndex=-1;
 	int numDirty = 0;
 	std::vector<std::unique_ptr<myTexture>> mTextureBuffer;
-
+	
 	HeightMapBuffer()
 	{
 		for(int i=0;i<mMaxHeightMapCount;++i)
@@ -163,8 +188,8 @@ protected:
 private:
 	void OnKeyboardInput(const GameTimer& gt);
 	
-	void UpdateObjectCBs(const GameTimer& gt);
-	void UpdateMaterialCBs(const GameTimer& gt);
+	// void UpdateObjectCBs(const GameTimer& gt);
+	// void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 	
 	void LoadTextures();
@@ -185,7 +210,7 @@ private:
 
 	void InitImGui();
 
-	void CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize);
+	void CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize, bool bIsTypeless = false);
 
 	void BuildPostProcessRootSignature();
 
@@ -216,7 +241,10 @@ private:
 	void UpdateShadowPassCB(const GameTimer& gt);
 
 	void UpdateShadowTransform(const GameTimer& gt);
-	
+
+	void UpdateInstanceBuffer(const GameTimer& gt);
+
+	void UpdateMaterialBuffer(const GameTimer& gt);
 protected:
 
     static D3DApp* mApp;
@@ -393,5 +421,9 @@ private:
 		XMFLOAT3(0.0f, -0.707f, -0.707f)
 	};
 	XMFLOAT3 mRotatedLightDirections[3];
+
+	BoundingFrustum mCamFrustum;
+
+	bool mFrustumCullingEnabled = true;
 };
 

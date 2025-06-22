@@ -40,15 +40,17 @@ public:
 public:
     HRESULT CreateDDSTextureFromFile(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList);
 
-    HRESULT CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList);
+    HRESULT CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList, bool bFmtTypeless = false);
     
-    HRESULT CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList, ID3D12CommandQueue* pD3D12CommandQueue, ID3D12CommandAllocator* pD3D12ComAlloc);
+    HRESULT CreateTextureFromFileName(ID3D12Device* pD3D12Device, ID3D12GraphicsCommandList* pD3D12CommandList, ID3D12CommandQueue* pD3D12CommandQueue, ID3D12CommandAllocator* pD3D12ComAlloc, bool bFmtTypeless = false);
 
     HRESULT GetScratchImage(std::wstring pFilename, DirectX::ScratchImage* sImage);
     
-    void CreateShaderResourceView(ID3D12Device* pD3D12Device,ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize);
+    void CreateShaderResourceView(ID3D12Device* pD3D12Device,ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset, UINT pDescriptorSize, bool bIsTypeless = false);
 
     void Release();
+
+    DirectX::ScratchImage SetTypelessFormat(DirectX::ScratchImage& pImage);
 public:
     // Unique material name for lookup.
     std::string Name;

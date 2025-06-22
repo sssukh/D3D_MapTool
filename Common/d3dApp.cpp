@@ -363,6 +363,8 @@ void D3DApp::OnResize()
 	mCam.SetLens(0.25f*MathHelper::Pi,AspectRatio(),1.0f,1000.0f);
 
 	mMouseRay->SetViewport(mScreenViewport);
+
+	BoundingFrustum::CreateFromMatrix(mCamFrustum,mCam.GetProj());
 }
 
 void D3DApp::Update(const GameTimer& gt)
@@ -395,11 +397,15 @@ void D3DApp::Update(const GameTimer& gt)
 	UINT tmpVertexByteSize = GetPlane()->Geo->VertexBufferByteSize;
 	UINT tmpVertexByteStride = GetPlane()->Geo->VertexByteStride;
 	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount/4);
-	
-	UpdateObjectCBs(gt);
-	UpdateMaterialCBs(gt);
-	UpdateMainPassCB(gt);
 
+	// Delete
+	// UpdateObjectCBs(gt);
+	// UpdateMaterialCBs(gt);
+	
+	UpdateInstanceBuffer(gt);
+	UpdateMaterialBuffer(gt);
+	UpdateMainPassCB(gt);
+	
 	AnimateLights(gt);
 	UpdateShadowTransform(gt);
 	UpdateShadowPassCB(gt);
@@ -479,12 +485,12 @@ void D3DApp::Draw(const GameTimer& gt)
 	// Specify the buffers we are going to render to.
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-
+	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(1, matBuffer->GetGPUVirtualAddress());
 
 	// different passCB has set at shadowMap Drawing.
-	// So change it
 	auto passCB = mCurrFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(1,passCB->GetGPUVirtualAddress());
+	mCommandList->SetGraphicsRootConstantBufferView(2,passCB->GetGPUVirtualAddress());
 
 	// draw objects
 	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
@@ -1023,60 +1029,68 @@ void D3DApp::OnKeyboardInput(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 	UpdateScene(dt);
+
+	// frustum culling 설정
+	if(GetAsyncKeyState('1') & 0x8000)
+		mFrustumCullingEnabled = true;
+
+	if(GetAsyncKeyState('2') & 0x8000)
+		mFrustumCullingEnabled = false;
+
+	// TODO : shadow Map debug 설정 추가
 }
 
 
-
-void D3DApp::UpdateObjectCBs(const GameTimer& gt)
-{
-	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-	for(auto& e : mAllRitems)
-	{
-		// Only update the cbuffer data if the constants have changed.  
-		// This needs to be tracked per frame resource.
-		if(e->NumFramesDirty > 0)
-		{
-			XMMATRIX world = XMLoadFloat4x4(&e->World);
-			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
-
-			ObjectConstants objConstants;
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-
-			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
-
-			// Next FrameResource need to be updated too.
-			e->NumFramesDirty--;
-		}
-	}
-}
-
-void D3DApp::UpdateMaterialCBs(const GameTimer& gt)
-{
-	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-	for(auto& e : mMaterials)
-	{
-		// Only update the cbuffer data if the constants have changed.  If the cbuffer
-		// data changes, it needs to be updated for each FrameResource.
-		Material* mat = e.second.get();
-		if(mat->NumFramesDirty > 0)
-		{
-			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
-
-			MaterialConstants matConstants;
-			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-			matConstants.FresnelR0 = mat->FresnelR0;
-			matConstants.Roughness = mat->Roughness;
-			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
-
-			// update and upload to uploadheap
-			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
-
-			// Next FrameResource need to be updated too.
-			mat->NumFramesDirty--;
-		}
-	}
-}
+// void D3DApp::UpdateObjectCBs(const GameTimer& gt)
+// {
+// 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+// 	for(auto& e : mAllRitems)
+// 	{
+// 		// Only update the cbuffer data if the constants have changed.  
+// 		// This needs to be tracked per frame resource.
+// 		if(e->NumFramesDirty > 0)
+// 		{
+// 			XMMATRIX world = XMLoadFloat4x4(&e->World);
+// 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+//
+// 			ObjectConstants objConstants;
+// 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+// 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+//
+// 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+//
+// 			// Next FrameResource need to be updated too.
+// 			e->NumFramesDirty--;
+// 		}
+// 	}
+// }
+//
+// void D3DApp::UpdateMaterialCBs(const GameTimer& gt)
+// {
+// 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+// 	for(auto& e : mMaterials)
+// 	{
+// 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
+// 		// data changes, it needs to be updated for each FrameResource.
+// 		Material* mat = e.second.get();
+// 		if(mat->NumFramesDirty > 0)
+// 		{
+// 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+//
+// 			MaterialConstants matConstants;
+// 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+// 			matConstants.FresnelR0 = mat->FresnelR0;
+// 			matConstants.Roughness = mat->Roughness;
+// 			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
+//
+// 			// update and upload to uploadheap
+// 			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+//
+// 			// Next FrameResource need to be updated too.
+// 			mat->NumFramesDirty--;
+// 		}
+// 	}
+// }
 
 void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 {
@@ -1177,8 +1191,9 @@ void D3DApp::LoadTextures()
 	auto myHeightTex = std::make_unique<myTexture>("heightTex",texPath);
 
 // 	auto myHeightTex = std::make_unique<myTexture>("heightTex",L"../../Textures/gray7.jpg");
-	myHeightTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
-
+	myHeightTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get(),true);
+	
+	
 	mHeightMapBuffer.UpdateHeightMap(std::move(myHeightTex));
 }
 
@@ -1195,22 +1210,29 @@ void D3DApp:: BuildRootSignature()
 	
 	CD3DX12_DESCRIPTOR_RANGE skyTexTable;
 	skyTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 12);
-	
-	
 
-	
-	
+	// 0 - instancebuffer - srv
+	// 1 - matbuffer - srv
+	// 2 - passbuffer - cb
+	// 3 - srvDesHeap - destable
 	
 	// Root parameter can be a table, root descriptor or root constants.
 	CD3DX12_ROOT_PARAMETER slotRootParameter[7];
 
 	// Perfomance TIP: Order from most frequent to least frequent.
-	slotRootParameter[0].InitAsConstantBufferView(0);
-	slotRootParameter[1].InitAsConstantBufferView(1);
-	slotRootParameter[2].InitAsConstantBufferView(2);
+	// InstanceBuffer
+	slotRootParameter[0].InitAsShaderResourceView(0, 1);
+	// MatBuffer
+	slotRootParameter[1].InitAsShaderResourceView(1, 1);
+	// PassBuffer
+	slotRootParameter[2].InitAsConstantBufferView(0);
+	// diffuseMapBuffer(Texture)
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	// HeightMap
 	slotRootParameter[4].InitAsDescriptorTable(1,&heightTable,D3D12_SHADER_VISIBILITY_DOMAIN);
+	// NormalMap
 	slotRootParameter[5].InitAsDescriptorTable(1,&normalTable,D3D12_SHADER_VISIBILITY_DOMAIN);
+	// SkyMap
 	slotRootParameter[6].InitAsDescriptorTable(1,&skyTexTable,D3D12_SHADER_VISIBILITY_PIXEL);
 
 
@@ -1345,8 +1367,8 @@ void D3DApp::BuildShadersAndInputLayout()
 	};
 	
 	mShaders["VS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "VS", "vs_5_1");
-	mShaders["HS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"HS","hs_5_0");
-	mShaders["DS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"DS","ds_5_0");
+	mShaders["HS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"HS","hs_5_1");
+	mShaders["DS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl",nullptr,"DS","ds_5_1");
 	mShaders["PS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShader.hlsl", nullptr, "PS", "ps_5_1");
 
 	mShaders["triVS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\myShaderTriangle.hlsl", nullptr, "VS", "vs_5_1");
@@ -1366,8 +1388,8 @@ void D3DApp::BuildShadersAndInputLayout()
 	mShaders["shadowVS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "PS", "ps_5_1");
 	mShaders["shadowAlphaTestedPS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", alphaTestDefines, "PS", "ps_5_1");
-	mShaders["shadowHS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "HS", "hs_5_0");
-	mShaders["shadowDS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "DS", "ds_5_0");
+	mShaders["shadowHS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "HS", "hs_5_1");
+	mShaders["shadowDS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Shadows.hlsl", nullptr, "DS", "ds_5_1");
 
 	mShaders["shadowTriVS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\ShadowsTriangle.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["shadowOpaqueTriPS"] = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\ShadowsTriangle.hlsl", nullptr, "PS", "ps_5_1");
@@ -1475,7 +1497,7 @@ void D3DApp::BuildPSOs()
 	smapPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	smapPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	smapPsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-	smapPsoDesc.RasterizerState.DepthBias = 100;
+	smapPsoDesc.RasterizerState.DepthBias = 100000;
 	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
 	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.5f;
 	smapPsoDesc.pRootSignature = mRootSignature.Get();
@@ -1616,7 +1638,7 @@ void D3DApp::BuildFrameResources()
 	for(int i = 0; i < gNumFrameResources; ++i)
 	{
 		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-			2, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
+			2,  (UINT)mMaterials.size()));
 	}
 }
 
@@ -1625,20 +1647,33 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData plane = geoGen.CreateGrid(width,depth,m,n);
 
+	XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
+	XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
+
+	XMVECTOR vPlaneMin = XMLoadFloat3(&vMinf3);
+	XMVECTOR vPlaneMax = XMLoadFloat3(&vMaxf3);
+	
 	std::vector<Vertex> vertices(plane.Vertices.size());
 	for(int i=0;i<vertices.size();++i)
 	{
 		vertices[i].Pos = plane.Vertices[i].Position;
 		vertices[i].Normal = plane.Vertices[i].Normal;
 		vertices[i].TexC = plane.Vertices[i].TexC;
+
+		XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
+		vPlaneMax = XMVectorMax(vPlaneMax, P);
+		vPlaneMin = XMVectorMin(vPlaneMin, P);
 	}
+
+	BoundingBox planeBounds;
+	XMStoreFloat3(&planeBounds.Center, 0.5f*(vPlaneMin + vPlaneMax));
+	XMStoreFloat3(&planeBounds.Extents, 0.5f*(vPlaneMax - vPlaneMin));
 
 	UINT indexCount;
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "planeGeo";
-
-	// TODO : 테스트 후 수정
+	
 	// 임시로 32bit 강제
 	if(true/*m*n>(UINT)1<<1*/)
 	{
@@ -1698,6 +1733,7 @@ void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n
 	submesh.VertexCount = plane.Vertices.size();
 	submesh.StartIndexLocation =0;
 	submesh.BaseVertexLocation = 0;
+	submesh.Bounds = planeBounds;
 
 	geo->DrawArgs["plane"] = submesh;
 
@@ -1756,7 +1792,7 @@ void D3DApp::BuildMaterials()
 
 void D3DApp::BuildRenderItems()
 {
-	auto planeRitem = std::make_unique<RenderItem>();
+	auto planeRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
 	planeRitem->World = MathHelper::Identity4x4();
 	planeRitem->TexTransform = MathHelper::Identity4x4();
 	planeRitem->ObjCBIndex = 0;
@@ -1766,12 +1802,21 @@ void D3DApp::BuildRenderItems()
 	planeRitem->IndexCount = planeRitem->Geo->DrawArgs["plane"].IndexCount;
 	planeRitem->StartIndexLocation = planeRitem->Geo->DrawArgs["plane"].StartIndexLocation;
 	planeRitem->BaseVertexLocation = planeRitem->Geo->DrawArgs["plane"].BaseVertexLocation;
+	planeRitem->Bounds = planeRitem->Geo->DrawArgs["plane"].Bounds;
+	
+	// planeRitem->SetUsingBB(true);
+	planeRitem->InstanceCount = 1;
+	planeRitem->Instances.resize(planeRitem->InstanceCount);
+	
+	XMStoreFloat4x4(&planeRitem->World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	XMStoreFloat4x4(&planeRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	planeRitem->Instances[0].MaterialIndex = 0 % mMaterials.size();
 	
 	mRitemLayer[(int)RenderType::Opaque].push_back(planeRitem.get());
 	mAllRitems.push_back(std::move(planeRitem));
 
 	// build sky sphere
-	auto skyRitem = std::make_unique<RenderItem>();
+	auto skyRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
 	XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
 	skyRitem->TexTransform = MathHelper::Identity4x4();
 	skyRitem->ObjCBIndex = 1;
@@ -1781,11 +1826,20 @@ void D3DApp::BuildRenderItems()
 	skyRitem->IndexCount = skyRitem->Geo->DrawArgs["sphere"].IndexCount;
 	skyRitem->StartIndexLocation = skyRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 	skyRitem->BaseVertexLocation = skyRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+	skyRitem->Bounds = skyRitem->Geo->DrawArgs["sphere"].Bounds;
+	// skyRitem->SetUsingBB(true);
 
+	skyRitem->InstanceCount = 1;
+	skyRitem->Instances.resize(skyRitem->InstanceCount);
+
+	XMStoreFloat4x4(&skyRitem->Instances[0].World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+	XMStoreFloat4x4(&skyRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	skyRitem->Instances[0].MaterialIndex = 1 % mMaterials.size();
+	
 	mRitemLayer[(int)RenderType::Sky].push_back(skyRitem.get());
 	mAllRitems.push_back(std::move(skyRitem));
 
-	auto quadRitem = std::make_unique<RenderItem>();
+	auto quadRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
 	quadRitem->World = MathHelper::Identity4x4();
 	quadRitem->TexTransform = MathHelper::Identity4x4();
 	quadRitem->ObjCBIndex = 2;
@@ -1795,12 +1849,20 @@ void D3DApp::BuildRenderItems()
 	quadRitem->IndexCount = quadRitem->Geo->DrawArgs["quad"].IndexCount;
 	quadRitem->StartIndexLocation = quadRitem->Geo->DrawArgs["quad"].StartIndexLocation;
 	quadRitem->BaseVertexLocation = quadRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+	quadRitem->Bounds = quadRitem->Geo->DrawArgs["quad"].Bounds;
+	
+	quadRitem->InstanceCount = 1;
+	quadRitem->Instances.resize(quadRitem->InstanceCount);
 
+	XMStoreFloat4x4(&quadRitem->Instances[0].World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	XMStoreFloat4x4(&quadRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	quadRitem->Instances[0].MaterialIndex = 2 % mMaterials.size();
+	
 	mRitemLayer[(int)RenderType::Debug].push_back(quadRitem.get());
 	mAllRitems.push_back(std::move(quadRitem));
 
-	auto boxRitem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(10.0f, 1.0f, 10.0f)*XMMatrixTranslation(0.0f, 50.0f, 0.0f));
+	auto boxRitem = std::make_unique<RenderItem>(md3dDevice.Get(),100);
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(10.0f, 1.0f, 10.0f)*XMMatrixTranslation(0.0f, 10.0f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
 	boxRitem->ObjCBIndex = 3;
 	boxRitem->Mat = mMaterials["bricks"].get();
@@ -1809,18 +1871,28 @@ void D3DApp::BuildRenderItems()
 	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
+	boxRitem->Bounds = boxRitem->Geo->DrawArgs["box"].Bounds;
+	
+	boxRitem->SetUsingBB(true);
 
-	mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
-	mAllRitems.push_back(std::move(boxRitem));
+	boxRitem->InstanceCount = 1;
+	boxRitem->Instances.resize(boxRitem->InstanceCount);
+	
+	XMStoreFloat4x4(&boxRitem->Instances[0].World, XMMatrixTranslation(0.0f, 10.0f, 0.0f));
+	XMStoreFloat4x4(&boxRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
+	boxRitem->Instances[0].MaterialIndex = 2 % mMaterials.size();
+	
+	// mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
+	// mAllRitems.push_back(std::move(boxRitem));
 }
 
 void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
-
-	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-	auto matCB = mCurrFrameResource->MaterialCB->Resource();
+	// UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	// UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+	//
+	// auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+	// auto matCB = mCurrFrameResource->MaterialCB->Resource();
 
 	// For each render item...
 	for(size_t i = 0; i < ritems.size(); ++i)
@@ -1836,15 +1908,22 @@ void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		// tex.Offset(mTextureIndex, mCbvSrvUavDescriptorSize);
 
 
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
+		// D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
+		// D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
 
-		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-		cmdList->SetGraphicsRootConstantBufferView(2, matCBAddress);
+		// cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+		// cmdList->SetGraphicsRootConstantBufferView(2, matCBAddress);
 
-		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+		auto InstanceBuffer = ri->InstanceBuffer->Resource();
+
+		// 0번째에 InstanceBuffer 묶기
+		// TODO : rootsignature 변경 
+		cmdList->SetGraphicsRootShaderResourceView(0,InstanceBuffer->GetGPUVirtualAddress());
+
+		cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
 }
+
 
 
 
@@ -1943,7 +2022,7 @@ void D3DApp::InitImGui()
 }
 
 void D3DApp::CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHeap* pDescriptorHeap, INT pOffset,
-	UINT pDescriptorSize)
+	UINT pDescriptorSize, bool bIsTypeless)
 {
 	if(pInTexture == nullptr)
 	{
@@ -1959,7 +2038,7 @@ void D3DApp::CreateShaderResourceView(myTexture* pInTexture, ID3D12DescriptorHea
 		return;
 	}
 	
-	pInTexture->CreateShaderResourceView(md3dDevice.Get(),pDescriptorHeap, pOffset,pDescriptorSize);
+	pInTexture->CreateShaderResourceView(md3dDevice.Get(),pDescriptorHeap, pOffset,pDescriptorSize,bIsTypeless);
 }
 
 void D3DApp::BuildPostProcessRootSignature()
@@ -2043,7 +2122,7 @@ void D3DApp::UpdateHeightMap(myTexture* pTexture)
 		INT heightMapOffset = GetCurrentHeightMapOffset();
 
 		// create srv for new height map
-		CreateShaderResourceView(pTexture,mSrvDescriptorHeap.Get(),heightMapOffset,mCbvSrvUavDescriptorSize);
+		CreateShaderResourceView(pTexture,mSrvDescriptorHeap.Get(),heightMapOffset,mCbvSrvUavDescriptorSize,true);
 	
 		D3D12_RESOURCE_DESC heightTex = pTexture->Resource->GetDesc();
 		INT texOffset = pTexture->mHandleOffset;
@@ -2091,6 +2170,9 @@ void D3DApp::InitRay()
 
 	mMouseRay->SetVertexIndexResource(mGeometries["planeGeo"]->VertexBufferGPU.Get(),mGeometries["planeGeo"]->IndexBufferGPU.Get());
 
+	DXGI_FORMAT heightFormat = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Format;
+	mMouseRay->SetFormat(heightFormat);
+	
 	mMouseRay->BuildModResource();
 	
 	mMouseRay->BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize)
@@ -2216,28 +2298,64 @@ void D3DApp::BuildShapeGeometry()
 	
 	std::vector<Vertex> vertices(totalVertexCount);
 
+	XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
+	XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
+
+	XMVECTOR vSphereMin = XMLoadFloat3(&vMinf3);
+	XMVECTOR vSphereMax = XMLoadFloat3(&vMaxf3);
+	
 	UINT k=0;
 	for(size_t i =0;i< sphere.Vertices.size(); ++i,++k)
 	{
 		vertices[k].Pos = sphere.Vertices[i].Position;
 		vertices[k].Normal = sphere.Vertices[i].Normal;
 		vertices[k].TexC = sphere.Vertices[i].TexC;
+
+		XMVECTOR P = XMLoadFloat3(&vertices[k].Pos);
+		vSphereMax = XMVectorMax(vSphereMax, P);
+		vSphereMin = XMVectorMin(vSphereMin, P);
 	}
 
+	BoundingBox sphereBounds;
+	XMStoreFloat3(&sphereBounds.Center, 0.5f*(vSphereMin + vSphereMax));
+	XMStoreFloat3(&sphereBounds.Extents, 0.5f*(vSphereMax - vSphereMin));
+
+	XMVECTOR vQuadMin = XMLoadFloat3(&vMinf3);
+	XMVECTOR vQuadMax = XMLoadFloat3(&vMaxf3);
+	
 	for(int i = 0; i < quad.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = quad.Vertices[i].Position;
 		vertices[k].Normal = quad.Vertices[i].Normal;
 		vertices[k].TexC = quad.Vertices[i].TexC;
+
+		XMVECTOR P = XMLoadFloat3(&vertices[k].Pos);
+		vQuadMax = XMVectorMax(vQuadMax, P);
+		vQuadMin = XMVectorMin(vQuadMin, P);
 	}
 
+	BoundingBox quadBounds;
+	XMStoreFloat3(&quadBounds.Center, 0.5f*(vQuadMin + vQuadMax));
+	XMStoreFloat3(&quadBounds.Extents, 0.5f*(vQuadMax - vQuadMin));
+	
+	XMVECTOR vBoxMin = XMLoadFloat3(&vMinf3);
+	XMVECTOR vBoxMax = XMLoadFloat3(&vMaxf3);
+	
 	for(size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = box.Vertices[i].Position;
 		vertices[k].Normal = box.Vertices[i].Normal;
 		vertices[k].TexC = box.Vertices[i].TexC;
+
+		XMVECTOR P = XMLoadFloat3(&vertices[k].Pos);
+		vBoxMax = XMVectorMax(vBoxMax, P);
+		vBoxMin = XMVectorMin(vBoxMin, P);
 	}
 
+	BoundingBox boxBounds;
+	XMStoreFloat3(&boxBounds.Center, 0.5f*(vBoxMin + vBoxMax));
+	XMStoreFloat3(&boxBounds.Extents, 0.5f*(vBoxMax - vBoxMin));
+	
 	std::vector<std::uint32_t> indices;
 	indices.insert(indices.end(),std::begin(sphere.Indices32),std::end(sphere.Indices32));
 	indices.insert(indices.end(),std::begin(quad.Indices32),std::end(quad.Indices32));
@@ -2267,6 +2385,10 @@ void D3DApp::BuildShapeGeometry()
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
+	sphereSubmesh.Bounds = sphereBounds;
+	boxSubmesh.Bounds = boxBounds;
+	quadSubmesh.Bounds = quadBounds;
+	
 	geo->DrawArgs["sphere"] = sphereSubmesh;
 	geo->DrawArgs["quad"] = quadSubmesh;
 	geo->DrawArgs["box"] = boxSubmesh;
@@ -2416,7 +2538,7 @@ void D3DApp::DrawSceneToShadowMap()
 	// Bind the pass constant buffer for the shadow map pass.
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1*passCBByteSize;
-	mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddress);
 
 	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
 
@@ -2513,6 +2635,98 @@ void D3DApp::UpdateShadowTransform(const GameTimer& gt)
 	XMStoreFloat4x4(&mLightView, lightView);
 	XMStoreFloat4x4(&mLightProj, lightProj);
 	XMStoreFloat4x4(&mShadowTransform, S);
+}
+
+void D3DApp::UpdateInstanceBuffer(const GameTimer& gt)
+{
+	XMMATRIX view = mCam.GetView();
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+
+	
+	for(auto& e : mAllRitems)
+	{
+		auto currInstanceBuffer = e->InstanceBuffer.get();
+		const auto& instanceData = e->Instances;
+
+		int visibleInstanceCount = 0;
+
+		for(UINT i = 0; i < (UINT)instanceData.size(); ++i)
+		{
+			XMMATRIX world = XMLoadFloat4x4(&instanceData[i].World);
+			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].TexTransform);
+
+			// Case of Non BB Object
+			if(!e->IsUsingBB())
+			{
+				InstanceData data;
+				XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
+				XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(texTransform));
+				data.MaterialIndex = instanceData[i].MaterialIndex;
+
+				// Write the instance data to structured buffer for the visible objects.
+				currInstanceBuffer->CopyData(visibleInstanceCount++, data);
+				continue;
+			}
+			
+			XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
+
+			// View space to the object's local space.
+			XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld);
+ 
+			// Transform the camera frustum from view space to the object's local space.
+			BoundingFrustum localSpaceFrustum;
+			mCamFrustum.Transform(localSpaceFrustum, viewToLocal);
+			
+			// Perform the box/frustum intersection test in local space.
+			if((localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT) || (mFrustumCullingEnabled==false))
+			{
+				InstanceData data;
+				XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
+				XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(texTransform));
+				data.MaterialIndex = instanceData[i].MaterialIndex;
+
+				// Write the instance data to structured buffer for the visible objects.
+				currInstanceBuffer->CopyData(visibleInstanceCount++, data);
+			}
+		}
+
+		e->InstanceCount = visibleInstanceCount;
+
+		std::wostringstream outs;
+		outs.precision(6);
+		outs << L"Instancing and Culling Demo" <<
+			L"    " << e->InstanceCount <<
+			L" objects visible out of " << e->Instances.size();
+		mMainWndCaption = outs.str();
+	}
+}
+
+
+void D3DApp::UpdateMaterialBuffer(const GameTimer& gt)
+{
+	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
+	for(auto& e : mMaterials)
+	{
+		// Only update the cbuffer data if the constants have changed.  If the cbuffer
+		// data changes, it needs to be updated for each FrameResource.
+		Material* mat = e.second.get();
+		if(mat->NumFramesDirty > 0)
+		{
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
+			MaterialData matData;
+			matData.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matData.FresnelR0 = mat->FresnelR0;
+			matData.Roughness = mat->Roughness;
+			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
+			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+
+			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
+
+			// Next FrameResource need to be updated too.
+			mat->NumFramesDirty--;
+		}
+	}
 }
 
 
