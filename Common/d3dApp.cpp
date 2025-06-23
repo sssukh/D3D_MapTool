@@ -440,9 +440,10 @@ void D3DApp::Draw(const GameTimer& gt)
 	}
 	
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-	// 
-	
 
+	// Mat Buffer 
+	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(1, matBuffer->GetGPUVirtualAddress());
 
 	// bind srv Textures
 	CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
@@ -485,8 +486,7 @@ void D3DApp::Draw(const GameTimer& gt)
 	// Specify the buffers we are going to render to.
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
-	mCommandList->SetGraphicsRootShaderResourceView(1, matBuffer->GetGPUVirtualAddress());
+	
 
 	// different passCB has set at shadowMap Drawing.
 	auto passCB = mCurrFrameResource->PassCB->Resource();
@@ -1862,9 +1862,9 @@ void D3DApp::BuildRenderItems()
 	mAllRitems.push_back(std::move(quadRitem));
 
 	auto boxRitem = std::make_unique<RenderItem>(md3dDevice.Get(),100);
-	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(10.0f, 1.0f, 10.0f)*XMMatrixTranslation(0.0f, 10.0f, 0.0f));
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(1.0f, 1.0f, 1.0f)*XMMatrixTranslation(0.0f, 0.0f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
-	boxRitem->ObjCBIndex = 3;
+	boxRitem->ObjCBIndex = 1;
 	boxRitem->Mat = mMaterials["bricks"].get();
 	boxRitem->Geo = mGeometries["shapeGeo"].get();
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1878,12 +1878,12 @@ void D3DApp::BuildRenderItems()
 	boxRitem->InstanceCount = 1;
 	boxRitem->Instances.resize(boxRitem->InstanceCount);
 	
-	XMStoreFloat4x4(&boxRitem->Instances[0].World, XMMatrixTranslation(0.0f, 10.0f, 0.0f));
-	XMStoreFloat4x4(&boxRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
-	boxRitem->Instances[0].MaterialIndex = 2 % mMaterials.size();
+	XMStoreFloat4x4(&boxRitem->Instances[0].World, XMMatrixTranslation(0.0f, 50.0f, 0.0f));
+	XMStoreFloat4x4(&boxRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	boxRitem->Instances[0].MaterialIndex = 0 % mMaterials.size();
 	
-	// mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
-	// mAllRitems.push_back(std::move(boxRitem));
+	mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
+	mAllRitems.push_back(std::move(boxRitem));
 }
 
 void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
@@ -1917,7 +1917,6 @@ void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		auto InstanceBuffer = ri->InstanceBuffer->Resource();
 
 		// 0번째에 InstanceBuffer 묶기
-		// TODO : rootsignature 변경 
 		cmdList->SetGraphicsRootShaderResourceView(0,InstanceBuffer->GetGPUVirtualAddress());
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
@@ -2269,7 +2268,7 @@ void D3DApp::BuildShapeGeometry()
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
-	GeometryGenerator::MeshData box = geoGen.CreateBox(10.0f,10.0f,10.0f,3);
+	GeometryGenerator::MeshData box = geoGen.CreateBox(10.0f,10.0f,10.0f,2);
 
 	UINT sphereVertexOffset = 0;
 	UINT quadVertexOffset = (UINT)sphere.Vertices.size();

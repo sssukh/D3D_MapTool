@@ -199,10 +199,6 @@ float4 PS(VertexOut pin) : SV_Target
     float4 litColor = ambient + directLight;
 	
 
-	// temporary code for check
-	// if(length(PosOnPlane - gMousePosOnPlane)<15)
-	//	litColor.r = 255.0f;
-
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;
 

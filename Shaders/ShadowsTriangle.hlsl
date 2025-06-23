@@ -31,7 +31,6 @@ VertexOut VS(VertexIn vin, uint instanceID : SV_InstanceID)
 	MaterialData matData = gMaterialData[matIndex];
 	VertexOut vout = (VertexOut)0.0f;
 
-	// MaterialData matData = gMaterialData[gMaterialIndex];
 	
 	
     // Transform to world space.
