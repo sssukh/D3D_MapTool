@@ -145,6 +145,9 @@
     <ClInclude Include="..\..\Common\myRay.h" />
     <ClInclude Include="..\..\Common\myTexture.h" />
     <ClInclude Include="..\..\Common\NormalMapGenerator.h" />
+    <ClInclude Include="..\..\Common\ObjectManager.h" />
+    <ClInclude Include="..\..\Common\QuadTreeNode.h" />
+    <ClInclude Include="..\..\Common\RenderItem.h" />
     <ClInclude Include="..\..\Common\ShadowMap.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
     <ClInclude Include="..\..\Common\UploadHelper.h" />
@@ -250,6 +253,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Common\myTexture.cpp" />
     <ClCompile Include="..\..\Common\NormalMapGenerator.cpp" />
+    <ClCompile Include="..\..\Common\ObjectManager.cpp" />
+    <ClCompile Include="..\..\Common\QuadTreeNode.cpp" />
+    <ClCompile Include="..\..\Common\RenderItem.cpp" />
     <ClCompile Include="..\..\Common\ShadowMap.cpp" />
     <ClCompile Include="..\..\Common\UploadHelper.cpp" />
     <ClCompile Include="..\..\ImGui\imgui.cpp" />

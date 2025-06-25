@@ -180,7 +180,7 @@ float4 PS(VertexOut pin) : SV_Target
 	float  mRoughness = matData.Roughness;
 	uint diffuseTexIndex = matData.DiffuseMapIndex;
     
-	float4 diffuseAlbedo = gDiffuseMap[gTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * mDiffuseAlbedo;
+	float4 diffuseAlbedo = gDiffuseMap[diffuseTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * mDiffuseAlbedo;
 
     // Vector from point being lit to eye. 
 	float3 toEyeW = gEyePosW - pin.PosW;

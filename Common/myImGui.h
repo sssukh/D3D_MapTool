@@ -82,14 +82,24 @@ public:
 
     void DrawWireFrameModeWindow(bool& bIsWireFrameMode);
 
-    bool DrawTextureOpenWindow(std::wstring& rFileDirectory );
+    bool DrawTextureOpenWindow(std::wstring& rFileDirectory);
 
     void DrawHeightModVarWindow(UINT& retIntersectRange, UINT& retMaxStrengthRange, float& retModStrength);
     
     std::wstring OpenFileDialog();
 
     bool DrawSaveMapWindow();
+
+    bool DrawDebugWindow(bool bIsWindowOpened);
+
+    bool DrawChangeRayModeWindow();
     
+    bool GetMouseIsHovering() { return bIsMouseHovering; }
+
+    void ResetMouseHovering() { bIsMouseHovering = false;}
+
+    void CheckMouseHovering();
+
 private:
     HWND mHwnd = nullptr;
     
@@ -102,4 +112,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescHeap = nullptr;
 
     bool isDebug = true;
+
+    bool bIsMouseHovering =false;
 };

@@ -454,5 +454,20 @@ void myRay::UpdateRayCBs(UINT pWidth, UINT pHeight, UINT pNumTriangles)
     planeInfoCB->CopyData(0,tmpPlaneInfo);
 }
 
+void myRay::ChangeRayMode()
+{
+    switch(mRayMode)
+    {
+    case ObjectPlacing:
+        mRayMode = HeightModification;
+        break;
+    case HeightModification:
+        mRayMode = ObjectPlacing;
+        break;
+    default:
+        break;
+    }
+}
+
 
     

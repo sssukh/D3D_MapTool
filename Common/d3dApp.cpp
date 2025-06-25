@@ -5,6 +5,7 @@
 #include "pix3.h"
 #include "myRay.h"
 #include "NormalMapGenerator.h"
+#include "RenderItem.h"
 #include "ShadowMap.h"
 
 using Microsoft::WRL::ComPtr;
@@ -100,11 +101,16 @@ int D3DApp::Run()
 				mImGui->DrawImGui();
 				
 				CalculateFrameStats();
-
-				
 				
 				Update(mTimer);
 
+				mImGui->ResetMouseHovering();
+
+				
+				if(mImGui->DrawChangeRayModeWindow())
+				{
+					mMouseRay->ChangeRayMode();
+				}
 				
 				if(mImGui->DrawTextureOpenWindow(mHeightMapDirectory))
 				{
@@ -116,10 +122,6 @@ int D3DApp::Run()
 					}
 
 					mHeightMapBuffer.UpdateHeightMap(std::move(mNewHeightMap));
-					// UpdateHeightMap(mHeightMapBuffer.GetCurrentUsingHeightmap());
-
-					// TODO : Change plane's vertex and index buffer depends on User's setting
-					// BuildPlaneGeometry(heightResource.Width,heightResource.Height,heightResource.Width,heightResource.Height);
 				}
 
 				if(mImGui->DrawSaveMapWindow())
@@ -145,6 +147,9 @@ int D3DApp::Run()
 					mMouseRay->SetStrengthRange(tmpMaxStrRange);
 					mMouseRay->SetModStrength(tmpModStrength);
 				}
+
+				bIsDebugging = mImGui->DrawDebugWindow(bIsDebugging);
+				
                 Draw(mTimer);
 
 			}
@@ -213,6 +218,8 @@ bool D3DApp::Initialize()
 	UINT halfHeight = height/2;
 	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
 	mSceneBounds.Radius = sqrtf(halfWid*halfWid + halfHeight*halfHeight);
+
+	InitializeQuadTree(width,height);
 	
 	BuildPlaneGeometry(width,height,100,100);
 	BuildShapeGeometry();
@@ -500,9 +507,12 @@ void D3DApp::Draw(const GameTimer& gt)
 
 	mCommandList->SetPipelineState(mPSOs["opaqueTri"].Get());
 	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::OpaqueTri]);
-	
-	mCommandList->SetPipelineState(mPSOs["debug"].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Debug]);
+
+	if(bIsDebugging)
+	{
+		mCommandList->SetPipelineState(mPSOs["debug"].Get());
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Debug]);
+	}
 
 	// draw sky sphere
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
@@ -1037,7 +1047,7 @@ void D3DApp::OnKeyboardInput(const GameTimer& gt)
 	if(GetAsyncKeyState('2') & 0x8000)
 		mFrustumCullingEnabled = false;
 
-	// TODO : shadow Map debug 설정 추가
+	
 }
 
 
@@ -1274,23 +1284,6 @@ void D3DApp::BuildDescriptorHeaps()
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
-
-	// // 널 SRV 디스크립터 생성
-	// D3D12_SHADER_RESOURCE_VIEW_DESC nullSrvDesc = {};
-	// nullSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	// nullSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	// nullSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	// nullSrvDesc.Texture2D.MipLevels = 1;
-	//
-	// for (UINT i = 0; i < srvHeapDesc.NumDescriptors; ++i) {
-	// 	md3dDevice->CreateShaderResourceView(
-	// 		nullptr, 
-	// 		&nullSrvDesc, 
-	// 		CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),i,mCbvSrvUavDescriptorSize)
-	// 	);
-	// }
-
-	
 	
 	CreateShaderResourceView(myTextures["iceTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 	
@@ -1765,15 +1758,17 @@ void D3DApp::BuildMaterials()
 	bricks->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	bricks->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	bricks->Roughness = 0.5f;
-	//
-	// auto checkboard = std::make_unique<Material>();
-	// checkboard->Name = "checkboard";
-	// checkboard->MatCBIndex = 2;
-	// checkboard->DiffuseSrvHeapIndex = 2;
-	// checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	// checkboard->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	// checkboard->Roughness = 0.5f;
-	//
+
+	
+	auto checkboard = std::make_unique<Material>();
+	checkboard->Name = "checkboard";
+	checkboard->MatCBIndex = 2;
+	checkboard->DiffuseSrvHeapIndex = 2;
+	checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	checkboard->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	checkboard->Roughness = 0.5f;
+
+	
 	// auto ice = std::make_unique<Material>();
 	// ice->Name = "ice";
 	// ice->MatCBIndex = 3;
@@ -1785,7 +1780,7 @@ void D3DApp::BuildMaterials()
 	mMaterials["planeMat"] = std::move(planeMat);
 	mMaterials["skyMat"] = std::move(skyMat);
 	mMaterials["bricks"] = std::move(bricks);
-	// mMaterials["checkboard"] = std::move(checkboard);
+	mMaterials["checkboard"] = std::move(checkboard);
 	// mMaterials["ice"] = std::move(ice);
 
 }
@@ -1861,11 +1856,11 @@ void D3DApp::BuildRenderItems()
 	mRitemLayer[(int)RenderType::Debug].push_back(quadRitem.get());
 	mAllRitems.push_back(std::move(quadRitem));
 
-	auto boxRitem = std::make_unique<RenderItem>(md3dDevice.Get(),100);
+	auto boxRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1000);
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(1.0f, 1.0f, 1.0f)*XMMatrixTranslation(0.0f, 0.0f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
 	boxRitem->ObjCBIndex = 1;
-	boxRitem->Mat = mMaterials["bricks"].get();
+	boxRitem->Mat = mMaterials["checkboard"].get();
 	boxRitem->Geo = mGeometries["shapeGeo"].get();
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
@@ -1881,7 +1876,8 @@ void D3DApp::BuildRenderItems()
 	XMStoreFloat4x4(&boxRitem->Instances[0].World, XMMatrixTranslation(0.0f, 50.0f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxRitem->Instances[0].MaterialIndex = 0 % mMaterials.size();
-	
+
+	mBox = boxRitem.get();
 	mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
 	mAllRitems.push_back(std::move(boxRitem));
 }
@@ -2257,9 +2253,14 @@ void D3DApp::CalcHeightMod()
 
 void D3DApp::OnMouseInput()
 {
-	if(GetKeyState(VK_LBUTTON)&0x8000 && mMouseRay->IsRayIntersectPlane())
+	if(GetKeyState(VK_LBUTTON)&0x8000 && mMouseRay->IsRayIntersectPlane()&&!mImGui->GetMouseIsHovering() )
 	{
-		CalcHeightMod();
+		if(mMouseRay->GetRayMode() == RayMode::HeightModification)
+			CalcHeightMod();
+		else if(mMouseRay->GetRayMode() == RayMode::ObjectPlacing)
+		{
+			CreateRenderItem( mBox, mMousePosOnPlane,XMFLOAT3(1.0f,1.0f,1.0f),XMFLOAT3(0.0f,0.0f,0.0f));
+		}
 	}
 }
 
@@ -2724,6 +2725,67 @@ void D3DApp::UpdateMaterialBuffer(const GameTimer& gt)
 
 			// Next FrameResource need to be updated too.
 			mat->NumFramesDirty--;
+		}
+	}
+}
+
+void D3DApp::InitializeQuadTree(UINT width, UINT height)
+{
+	float halfWid = width/2;
+	float halfHeight = height/2;
+
+	XMFLOAT3 centerLT = XMFLOAT3(-halfWid/2,0.0f,+halfHeight/2);
+	XMFLOAT3 centerLB = XMFLOAT3(-halfWid/2,0.0f,-halfHeight/2);
+	XMFLOAT3 centerRT = XMFLOAT3(+halfWid/2,0.0f,+halfHeight/2);
+	XMFLOAT3 centerRB = XMFLOAT3(+halfWid/2,0.0f,-halfHeight/2);
+
+	XMFLOAT3 extents = XMFLOAT3(halfWid,50.0f,halfHeight);
+
+	XMVECTOR ev = XMLoadFloat3(&extents);
+	XMVECTOR c1 = XMLoadFloat3(&centerLT);
+	XMVECTOR c2 = XMLoadFloat3(&centerLB);
+	XMVECTOR c3 = XMLoadFloat3(&centerRT);
+	XMVECTOR c4 = XMLoadFloat3(&centerRB);
+	
+	QuadTreeNode* qt1 = new QuadTreeNode(c1,ev);
+	QuadTreeNode* qt2 = new QuadTreeNode(c2,ev);
+	QuadTreeNode* qt3 = new QuadTreeNode(c3,ev);
+	QuadTreeNode* qt4 = new QuadTreeNode(c4,ev);
+
+	mQuadTree.push_back(qt1);
+	mQuadTree.push_back(qt2);
+	mQuadTree.push_back(qt3);
+	mQuadTree.push_back(qt4);
+}
+
+void D3DApp::CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldScale,XMFLOAT3 worldRot)
+{
+	BoundingBox nbb = pRI->Bounds;
+
+	DirectX::XMMATRIX nWorld = XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z);
+
+	nbb.Transform(nbb,nWorld);
+
+
+	InstanceRef nIR;
+	nIR.ParentItem = pRI;
+	nIR.WorldBounds = nbb;
+	nIR.InstanceIndex = pRI->Instances.size();
+	
+	for(QuadTreeNode* qt : mQuadTree)
+	{
+		// 바운드가 겹치면서 node 내부의 오브젝트들과 겹치지 않으면
+		if(qt->CheckObjectContain(nIR) && !qt->CheckObjectIntersectNodeObjects(nIR))
+		{
+			 qt->AddObject(nIR);
+			 pRI->InstanceCount++;
+
+			InstanceData nID;
+			XMStoreFloat4x4(&nID.World,XMMatrixRotationRollPitchYaw(worldRot.x,worldRot.y,worldRot.z)*XMMatrixScaling(worldScale.x,worldScale.y,worldScale.z) * XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z));
+			XMStoreFloat4x4(&nID.TexTransform,XMMatrixScaling(1.0f,1.0f,1.0f));
+			nID.MaterialIndex = 1 % mMaterials.size();
+
+			pRI->Instances.push_back(nID);
 		}
 	}
 }

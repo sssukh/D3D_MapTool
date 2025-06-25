@@ -12,6 +12,13 @@
 struct RenderItem;
 using namespace DirectX;
 
+enum RayMode 
+{
+    HeightModification = 0,
+    ObjectPlacing = 1,
+    Counts
+};
+
 struct PickingResult
 {
     bool Hit;
@@ -143,7 +150,9 @@ public:
   
     float GetModStrength() {return mModifingStrength;}
 
-    
+    UINT GetRayMode() {return (UINT)mRayMode;}
+
+    void ChangeRayMode();
 private:
     XMFLOAT3 mRayOrigin = XMFLOAT3(0.0f,0.0f,0.0f);
 
@@ -238,4 +247,5 @@ private:
     
     DXGI_FORMAT mTexFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
+    RayMode mRayMode = RayMode::HeightModification;
 };

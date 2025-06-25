@@ -21,6 +21,7 @@
 
 #include "myImGui.h"
 #include "myTexture.h"
+#include "QuadTreeNode.h"
 
 class ShadowMap;
 using Microsoft::WRL::ComPtr;
@@ -40,64 +41,6 @@ enum class RenderType
 	Sky = 2,
 	Debug = 3,
 	Count
-};
-
-struct InstanceData
-{
-	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-	UINT MaterialIndex;
-	UINT InstancePad0;
-	UINT InstancePad1;
-	UINT InstancePad2;
-};
-
-struct RenderItem
-{
-	// RenderItem() = default;
-	RenderItem(ID3D12Device* device, UINT maxInstanceCount)
-	{
-		InstanceBuffer = std::make_unique<UploadBuffer<InstanceData>>(device, maxInstanceCount, false);
-	}
-
-	bool IsUsingBB() { return bUsingBB;}
-	void SetUsingBB(bool bUseBB) { bUsingBB = bUseBB; }
-	
-	// World matrix of the shape that describes the object's local space
-	// relative to the world space, which defines the position, orientation,
-	// and scale of the object in the world.
-	XMFLOAT4X4 World = MathHelper::Identity4x4();
-
-	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-
-	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
-	// Because we have an object cbuffer for each FrameResource, we have to apply the
-	// update to each FrameResource.  Thus, when we modify obect data we should set 
-	// NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
-	int NumFramesDirty = gNumFrameResources;
-
-	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
-	UINT ObjCBIndex = -1;
-
-	Material* Mat = nullptr;
-	MeshGeometry* Geo = nullptr;
-
-	// Primitive topology.
-	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-	BoundingBox Bounds;
-	std::vector<InstanceData> Instances;
-	
-	// DrawIndexedInstanced parameters.
-	UINT IndexCount = 0;
-	UINT InstanceCount=0;
-	UINT StartIndexLocation = 0;
-	int BaseVertexLocation = 0;
-	
-	std::unique_ptr<UploadBuffer<InstanceData>> InstanceBuffer = nullptr;
-
-private:
-	bool bUsingBB = false;
 };
 
 struct HeightMapBuffer
@@ -123,8 +66,6 @@ struct HeightMapBuffer
 		numDirty = 1;
 	}
 	myTexture* GetCurrentUsingHeightmap() const { return mTextureBuffer[mCurrentUsingIndex].get();}
-
-	
 };
 
 class myRay;
@@ -245,6 +186,10 @@ private:
 	void UpdateInstanceBuffer(const GameTimer& gt);
 
 	void UpdateMaterialBuffer(const GameTimer& gt);
+
+	void InitializeQuadTree(UINT width, UINT height);
+
+	void CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldScale,XMFLOAT3 worldRot);
 protected:
 
     static D3DApp* mApp;
@@ -425,5 +370,13 @@ private:
 	BoundingFrustum mCamFrustum;
 
 	bool mFrustumCullingEnabled = true;
+
+	bool bIsDebugging = false;
+
+	bool bIsMouseWidgetHovering = false;
+
+	std::vector<QuadTreeNode*> mQuadTree;
+
+	RenderItem* mBox;
 };
 

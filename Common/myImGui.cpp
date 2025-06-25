@@ -88,7 +88,7 @@ void myImGui::DrawMousePlanePosWindow(DirectX::XMFLOAT3 pValue)
     if(isDebug)
     {
         ImGui::Begin("Mouse Pos On Plane");
-
+        CheckMouseHovering();
         ImGui::Text("x : %f   y: %f   z : %f",pValue.x, pValue.y, pValue.z);
     
         ImGui::End();
@@ -99,6 +99,9 @@ void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex)
 {
     // UINT tmp = gFrameNum * pDescriptorNumPerFrame;
     ImGui::Begin("Plane Texture List");
+
+    CheckMouseHovering();
+    
     ImGui::Text("Click the button and change the plane texture");
     if(ImGui::Button("Texture0"))
         pTexIndex=0;
@@ -132,6 +135,9 @@ void myImGui::DrawPlaneTextureListWindow(UINT& pTexIndex)
 void myImGui::DrawWireFrameModeWindow(bool& bIsWireFrameMode)
 {
     ImGui::Begin("WireFrameMode");
+
+    CheckMouseHovering();
+    
     std::string text;
     if(bIsWireFrameMode)
     {
@@ -152,6 +158,9 @@ void myImGui::DrawWireFrameModeWindow(bool& bIsWireFrameMode)
 bool myImGui::DrawTextureOpenWindow(std::wstring& rFileDirectory)
 {
     ImGui::Begin("Select Height Map");
+
+    CheckMouseHovering();
+    
     std::wstring tmpString = L""; 
     if(ImGui::Button("Open"))
     {
@@ -174,6 +183,8 @@ bool myImGui::DrawTextureOpenWindow(std::wstring& rFileDirectory)
 void myImGui::DrawHeightModVarWindow(UINT& retIntersectRange, UINT& retMaxStrengthRange, float& retModStrength)
 {
     ImGui::Begin("Select Cursur Range");
+
+    CheckMouseHovering();
     
     int tmpIntRange = retIntersectRange;
     int tmpMaxStrRange = retMaxStrengthRange;
@@ -219,6 +230,9 @@ bool myImGui::DrawSaveMapWindow()
     bool result = false;
     
     ImGui::Begin("Save the Map");
+
+    CheckMouseHovering();
+    
     if(ImGui::Button("Save"))
     {
         // 파일 열기
@@ -226,6 +240,47 @@ bool myImGui::DrawSaveMapWindow()
     }
     ImGui::End();
     return result;
+}
+
+bool myImGui::DrawDebugWindow(bool IsWindowOpened)
+{
+    bool result = IsWindowOpened;
+    
+    ImGui::Begin("Open/Close DebugWindow");
+
+    CheckMouseHovering();
+    
+    if(ImGui::Button("Open/Close"))
+    {
+        result = !IsWindowOpened;
+    }
+    ImGui::End();
+    return result;
+}
+
+bool myImGui::DrawChangeRayModeWindow()
+{
+    bool result  = false;
+    ImGui::Begin("Change Mode");
+
+    CheckMouseHovering();
+    
+    if(ImGui::Button("Change"))
+    {
+        result = true;
+    }
+    ImGui::End();
+    
+    return result;
+}
+
+void myImGui::CheckMouseHovering()
+{
+    bool flag = false;
+    if(ImGui::IsWindowHovered())
+        flag = true;
+
+    bIsMouseHovering |=flag;
 }
 
 
