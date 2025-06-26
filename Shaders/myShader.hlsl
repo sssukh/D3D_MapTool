@@ -206,22 +206,24 @@ float4 PS(DomainOut pin) : SV_Target
 
     float4 litColor = ambient + directLight;
 	
-	float3 PosOnPlane = pin.PosW;
-	
-	float2 delta = pin.PosW.xz - gMousePosOnPlane.xz;
-
-	// 범위 내의 픽셀들 강조
-	int MaxRange = gIntersectRange*gIntersectRange;
-	int MidRange = gMaxStrengthRange*gMaxStrengthRange;
-	float range = dot(delta,delta);
-	if(range < MaxRange)
-		litColor.r = 255.0f;
-	if(abs(range - (float)MidRange) < 1.5f)
+	if(gMouseMode==0)
 	{
-		litColor.r = 0.0f;
-		litColor.b = 255.0f;
+		float3 PosOnPlane = pin.PosW;
+		
+		float2 delta = pin.PosW.xz - gMousePosOnPlane.xz;
+		
+		// 범위 내의 픽셀들 강조
+		int MaxRange = gIntersectRange*gIntersectRange;
+		int MidRange = gMaxStrengthRange*gMaxStrengthRange;
+		float range = dot(delta,delta);
+		if(range < MaxRange)
+			litColor.r = 255.0f;
+		if(abs(range - (float)MidRange) < 1.5f)
+		{
+			litColor.r = 0.0f;
+			litColor.b = 255.0f;
+		}
 	}
-
 
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;

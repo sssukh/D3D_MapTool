@@ -190,14 +190,23 @@ float4 PS(VertexOut pin) : SV_Target
     // Light terms.
     float4 ambient = gAmbientLight*diffuseAlbedo;
 
+	// float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
+	// shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
+
     const float shininess = 1.0f - mRoughness;
     Material mat = { diffuseAlbedo, mFresnelR0, shininess };
-    float3 shadowFactor = 1.0f;
+    float3 shadowFactor = 0.0f;
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
         pin.NormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
 	
+	if(gMouseMode==1)
+	{	
+		
+
+	}
+
 
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;

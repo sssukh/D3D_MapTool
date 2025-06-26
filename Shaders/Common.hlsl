@@ -109,6 +109,8 @@ cbuffer cbPass : register(b0)
 
 	uint gIntersectRange;
 	uint gMaxStrengthRange;
+
+	uint gMouseMode;
 };
 
 /*

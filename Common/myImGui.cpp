@@ -277,7 +277,7 @@ bool myImGui::DrawChangeRayModeWindow()
 void myImGui::CheckMouseHovering()
 {
     bool flag = false;
-    if(ImGui::IsWindowHovered())
+    if(ImGui::IsWindowHovered()||ImGui::IsAnyItemHovered())
         flag = true;
 
     bIsMouseHovering |=flag;

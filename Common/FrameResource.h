@@ -46,6 +46,10 @@ struct PassConstants
 	UINT IntersectRange = 15;
 
 	UINT MaxStrengthRange = 5;
+
+	UINT MouseMode = 0;
+
+	// bool bIsIntersected = false;
 };
 
 struct Vertex

@@ -412,6 +412,8 @@ void D3DApp::Update(const GameTimer& gt)
 	UpdateInstanceBuffer(gt);
 	UpdateMaterialBuffer(gt);
 	UpdateMainPassCB(gt);
+
+	UpdateObjectCursur(gt);
 	
 	AnimateLights(gt);
 	UpdateShadowTransform(gt);
@@ -1163,6 +1165,7 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.IntersectRange = mMouseRay->GetIntersectRange();
 	mMainPassCB.MaxStrengthRange = mMouseRay->GetStrengthRange();
 
+	mMainPassCB.MouseMode = mMouseRay->GetRayMode();
 	
 	// Main pass stored in index 2
 	auto currPassCB = mCurrFrameResource->PassCB.get();
@@ -1762,8 +1765,8 @@ void D3DApp::BuildMaterials()
 	
 	auto checkboard = std::make_unique<Material>();
 	checkboard->Name = "checkboard";
-	checkboard->MatCBIndex = 2;
-	checkboard->DiffuseSrvHeapIndex = 2;
+	checkboard->MatCBIndex = 3;
+	checkboard->DiffuseSrvHeapIndex = 3;
 	checkboard->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	checkboard->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	checkboard->Roughness = 0.5f;
@@ -1875,7 +1878,7 @@ void D3DApp::BuildRenderItems()
 	
 	XMStoreFloat4x4(&boxRitem->Instances[0].World, XMMatrixTranslation(0.0f, 50.0f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	boxRitem->Instances[0].MaterialIndex = 0 % mMaterials.size();
+	boxRitem->Instances[0].MaterialIndex = 3 % mMaterials.size();
 
 	mBox = boxRitem.get();
 	mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
@@ -2783,11 +2786,20 @@ void D3DApp::CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldS
 			InstanceData nID;
 			XMStoreFloat4x4(&nID.World,XMMatrixRotationRollPitchYaw(worldRot.x,worldRot.y,worldRot.z)*XMMatrixScaling(worldScale.x,worldScale.y,worldScale.z) * XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z));
 			XMStoreFloat4x4(&nID.TexTransform,XMMatrixScaling(1.0f,1.0f,1.0f));
-			nID.MaterialIndex = 1 % mMaterials.size();
+			nID.MaterialIndex = pRI->InstanceCount % mMaterials.size();
 
 			pRI->Instances.push_back(nID);
 		}
 	}
+}
+
+void D3DApp::UpdateObjectCursur(const GameTimer& gt)
+{
+	if(mMouseRay->GetRayMode()==1)
+		XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
+	else
+		XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
+
 }
 
 

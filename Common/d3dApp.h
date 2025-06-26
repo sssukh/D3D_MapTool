@@ -190,6 +190,8 @@ private:
 	void InitializeQuadTree(UINT width, UINT height);
 
 	void CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldScale,XMFLOAT3 worldRot);
+
+	void UpdateObjectCursur(const GameTimer& gt);
 protected:
 
     static D3DApp* mApp;
