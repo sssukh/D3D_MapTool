@@ -27,6 +27,7 @@ struct InstanceData
 	float4x4 World;
 	float4x4 TexTransform;
 	uint     MaterialIndex;
+	uint     InstanceID;
 	uint     InstPad0;
 	uint     InstPad1;
 	uint     InstPad2;

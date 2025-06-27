@@ -191,6 +191,8 @@ private:
 
 	void CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldScale,XMFLOAT3 worldRot);
 
+	void EraseRenderItem(XMFLOAT3 worldPos, float pRange);
+	
 	void UpdateObjectCursur(const GameTimer& gt);
 protected:
 

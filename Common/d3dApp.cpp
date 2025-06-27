@@ -106,11 +106,7 @@ int D3DApp::Run()
 
 				mImGui->ResetMouseHovering();
 
-				
-				if(mImGui->DrawChangeRayModeWindow())
-				{
-					mMouseRay->ChangeRayMode();
-				}
+				mMouseRay->ChangeRayMode(mImGui->DrawChangeRayModeWindow());
 				
 				if(mImGui->DrawTextureOpenWindow(mHeightMapDirectory))
 				{
@@ -1803,12 +1799,15 @@ void D3DApp::BuildRenderItems()
 	planeRitem->Bounds = planeRitem->Geo->DrawArgs["plane"].Bounds;
 	
 	// planeRitem->SetUsingBB(true);
-	planeRitem->InstanceCount = 1;
-	planeRitem->Instances.resize(planeRitem->InstanceCount);
+	// planeRitem->Instances.resize(1);
+
+	InstanceData planeID;
 	
-	XMStoreFloat4x4(&planeRitem->World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	XMStoreFloat4x4(&planeRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	planeRitem->Instances[0].MaterialIndex = 0 % mMaterials.size();
+	XMStoreFloat4x4(&planeID.World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	XMStoreFloat4x4(&planeID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	planeID.MaterialIndex = 0 % mMaterials.size();
+
+	planeRitem->AddInstance(planeID);
 	
 	mRitemLayer[(int)RenderType::Opaque].push_back(planeRitem.get());
 	mAllRitems.push_back(std::move(planeRitem));
@@ -1827,12 +1826,15 @@ void D3DApp::BuildRenderItems()
 	skyRitem->Bounds = skyRitem->Geo->DrawArgs["sphere"].Bounds;
 	// skyRitem->SetUsingBB(true);
 
-	skyRitem->InstanceCount = 1;
-	skyRitem->Instances.resize(skyRitem->InstanceCount);
+	// skyRitem->Instances.resize(1);
 
-	XMStoreFloat4x4(&skyRitem->Instances[0].World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-	XMStoreFloat4x4(&skyRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	skyRitem->Instances[0].MaterialIndex = 1 % mMaterials.size();
+	InstanceData skyID;
+	
+	XMStoreFloat4x4(&skyID.World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+	XMStoreFloat4x4(&skyID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	skyID.MaterialIndex = 1 % mMaterials.size();
+
+	skyRitem->AddInstance(skyID);
 	
 	mRitemLayer[(int)RenderType::Sky].push_back(skyRitem.get());
 	mAllRitems.push_back(std::move(skyRitem));
@@ -1849,12 +1851,15 @@ void D3DApp::BuildRenderItems()
 	quadRitem->BaseVertexLocation = quadRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
 	quadRitem->Bounds = quadRitem->Geo->DrawArgs["quad"].Bounds;
 	
-	quadRitem->InstanceCount = 1;
-	quadRitem->Instances.resize(quadRitem->InstanceCount);
+	// quadRitem->Instances.resize(1);
 
-	XMStoreFloat4x4(&quadRitem->Instances[0].World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	XMStoreFloat4x4(&quadRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	quadRitem->Instances[0].MaterialIndex = 2 % mMaterials.size();
+	InstanceData quadID;
+	
+	XMStoreFloat4x4(&quadID.World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	XMStoreFloat4x4(&quadID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	quadID.MaterialIndex = 2 % mMaterials.size();
+
+	quadRitem->AddInstance(quadID);
 	
 	mRitemLayer[(int)RenderType::Debug].push_back(quadRitem.get());
 	mAllRitems.push_back(std::move(quadRitem));
@@ -1873,13 +1878,16 @@ void D3DApp::BuildRenderItems()
 	
 	boxRitem->SetUsingBB(true);
 
-	boxRitem->InstanceCount = 1;
-	boxRitem->Instances.resize(boxRitem->InstanceCount);
-	
-	XMStoreFloat4x4(&boxRitem->Instances[0].World, XMMatrixTranslation(0.0f, 50.0f, 0.0f));
-	XMStoreFloat4x4(&boxRitem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	boxRitem->Instances[0].MaterialIndex = 3 % mMaterials.size();
+	// boxRitem->Instances.resize(1);
 
+	InstanceData boxID;
+	
+	XMStoreFloat4x4(&boxID.World, XMMatrixTranslation(0.0f, 50.0f, 0.0f));
+	XMStoreFloat4x4(&boxID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	boxID.MaterialIndex = 3 % mMaterials.size();
+
+	boxRitem->AddInstance(boxID);
+	
 	mBox = boxRitem.get();
 	mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
 	mAllRitems.push_back(std::move(boxRitem));
@@ -2258,12 +2266,21 @@ void D3DApp::OnMouseInput()
 {
 	if(GetKeyState(VK_LBUTTON)&0x8000 && mMouseRay->IsRayIntersectPlane()&&!mImGui->GetMouseIsHovering() )
 	{
-		if(mMouseRay->GetRayMode() == RayMode::HeightModification)
-			CalcHeightMod();
-		else if(mMouseRay->GetRayMode() == RayMode::ObjectPlacing)
+		switch(mMouseRay->GetRayMode())
 		{
+		case RayMode::HeightModification:
+			CalcHeightMod();
+			break;
+		case RayMode::ObjectPlacing:
 			CreateRenderItem( mBox, mMousePosOnPlane,XMFLOAT3(1.0f,1.0f,1.0f),XMFLOAT3(0.0f,0.0f,0.0f));
+			break;
+		case RayMode::ObjectErase:
+			EraseRenderItem(mMousePosOnPlane,5.0f);
+			break;
+		default:
+			break;
 		}
+		
 	}
 }
 
@@ -2773,22 +2790,44 @@ void D3DApp::CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldS
 	InstanceRef nIR;
 	nIR.ParentItem = pRI;
 	nIR.WorldBounds = nbb;
-	nIR.InstanceIndex = pRI->Instances.size();
 	
 	for(QuadTreeNode* qt : mQuadTree)
 	{
 		// 바운드가 겹치면서 node 내부의 오브젝트들과 겹치지 않으면
 		if(qt->CheckObjectContain(nIR) && !qt->CheckObjectIntersectNodeObjects(nIR))
 		{
-			 qt->AddObject(nIR);
-			 pRI->InstanceCount++;
-
 			InstanceData nID;
 			XMStoreFloat4x4(&nID.World,XMMatrixRotationRollPitchYaw(worldRot.x,worldRot.y,worldRot.z)*XMMatrixScaling(worldScale.x,worldScale.y,worldScale.z) * XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z));
 			XMStoreFloat4x4(&nID.TexTransform,XMMatrixScaling(1.0f,1.0f,1.0f));
-			nID.MaterialIndex = pRI->InstanceCount % mMaterials.size();
+			nID.MaterialIndex = 3 % mMaterials.size();
 
-			pRI->Instances.push_back(nID);
+			nIR.InstanceID = pRI->AddInstance(nID);
+			
+			qt->AddObject(nIR);
+		}
+	}
+}
+
+void D3DApp::EraseRenderItem(XMFLOAT3 worldPos, float pRange)
+{
+	BoundingSphere bs;
+	bs.Center = worldPos;
+	bs.Radius = pRange;
+	
+	for(QuadTreeNode* qt : mQuadTree)
+	{
+		if(qt->CheckMouseCursurContain(bs))
+		{
+			std::vector<InstanceRef> vIR = qt->GetIntersectedObject(worldPos,pRange);
+			for(InstanceRef ir : vIR)
+			{
+				UINT instanceIDRemoving = ir.InstanceID;
+				// instanceData에 dirtyflag 같은 변수를 추가해서
+				// 제거를 하게되면 quadTree에 추가한 index값이 더이상 유효한 정보가 아니게 된다.
+				// 이를 어떻게 관리하면 좋을까...
+				mBox->RemoveInstanceByID(instanceIDRemoving);
+				qt->RemoveInstance(instanceIDRemoving);
+			}
 		}
 	}
 }

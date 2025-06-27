@@ -8,6 +8,7 @@ struct InstanceData
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
     UINT MaterialIndex;
+    UINT InstanceID;
     UINT InstancePad0;
     UINT InstancePad1;
     UINT InstancePad2;
@@ -25,6 +26,9 @@ public:
     bool IsUsingBB() { return bUsingBB;}
     void SetUsingBB(bool bUseBB) { bUsingBB = bUseBB; }
 
+    UINT AddInstance(const InstanceData& data);
+
+    void RemoveInstanceByID(UINT instanceID);
 public:
     // World matrix of the shape that describes the object's local space
     // relative to the world space, which defines the position, orientation,
@@ -60,4 +64,9 @@ public:
     std::unique_ptr<UploadBuffer<InstanceData>> InstanceBuffer = nullptr;
 private:
     bool bUsingBB = false;
+
+    std::unordered_map<UINT, UINT> InstanceIDToIndexMap;
+    UINT NextInstanceID = 0;  // ID 발급기
+
+    
 };

@@ -16,6 +16,7 @@ enum RayMode
 {
     HeightModification = 0,
     ObjectPlacing = 1,
+    ObjectErase = 2,
     Counts
 };
 
@@ -152,7 +153,7 @@ public:
 
     UINT GetRayMode() {return (UINT)mRayMode;}
 
-    void ChangeRayMode();
+    void ChangeRayMode(UINT param);
 private:
     XMFLOAT3 mRayOrigin = XMFLOAT3(0.0f,0.0f,0.0f);
 

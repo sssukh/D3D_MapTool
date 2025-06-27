@@ -9,13 +9,13 @@ class RenderItem;
 struct InstanceRef
 {
     RenderItem* ParentItem;  // 소속 RenderItem 포인터
-    UINT InstanceIndex;      // 해당 RenderItem 내 인스턴스 인덱스
     DirectX::BoundingBox WorldBounds; // 월드 공간 바운딩 박스 (계산된 값)
+    UINT InstanceID;
 
     bool operator==(InstanceRef rhs)
     {
         if(this->ParentItem == rhs.ParentItem&&
-            this->InstanceIndex == rhs.InstanceIndex)
+            this->InstanceID == rhs.InstanceID)
             return true;
 
         return false;
@@ -31,6 +31,8 @@ public:
 
     ~QuadTreeNode();
 
+    bool CheckMouseCursurContain(DirectX::BoundingSphere pBS);
+    
     // bound에 존재하는지 check
     bool CheckObjectContain(InstanceRef pIR);
 
@@ -42,6 +44,10 @@ public:
 
     // Node 내부의 object들과 겹치는지 확인
     bool CheckObjectIntersectNodeObjects(InstanceRef pIR);
+
+    std::vector<InstanceRef> GetIntersectedObject(DirectX::XMFLOAT3 WorldPos, float pRange);
+
+    void RemoveInstance(UINT instanceID);
     
     DirectX::BoundingBox GetBound() { return mbound; }
     

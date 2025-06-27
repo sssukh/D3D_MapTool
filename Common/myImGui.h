@@ -92,7 +92,7 @@ public:
 
     bool DrawDebugWindow(bool bIsWindowOpened);
 
-    bool DrawChangeRayModeWindow();
+    UINT DrawChangeRayModeWindow();
     
     bool GetMouseIsHovering() { return bIsMouseHovering; }
 

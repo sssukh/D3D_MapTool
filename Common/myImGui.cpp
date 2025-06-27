@@ -258,16 +258,24 @@ bool myImGui::DrawDebugWindow(bool IsWindowOpened)
     return result;
 }
 
-bool myImGui::DrawChangeRayModeWindow()
+UINT myImGui::DrawChangeRayModeWindow()
 {
-    bool result  = false;
+    UINT result  = 0;
     ImGui::Begin("Change Mode");
 
     CheckMouseHovering();
     
-    if(ImGui::Button("Change"))
+    if(ImGui::Button("Height Mod"))
     {
-        result = true;
+        result = 1;
+    }
+    if(ImGui::Button("Object Placing"))
+    {
+        result = 2;
+    }
+    if(ImGui::Button("Object Erasing"))
+    {
+        result = 3;
     }
     ImGui::End();
     
