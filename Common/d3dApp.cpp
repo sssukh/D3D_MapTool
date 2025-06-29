@@ -373,7 +373,7 @@ void D3DApp::OnResize()
 void D3DApp::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
-	OnMouseInput();
+	OnMouseInput(gt);
 	
 	
 	// Cycle through the circular frame resource array.
@@ -1195,6 +1195,11 @@ void D3DApp::LoadTextures()
 	// mySkyCubeMapTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 
 	myTextures[mySkyCubeMapTex->Name] = std::move(mySkyCubeMapTex);
+
+	auto redTex = std::make_unique<myTexture>("redTex",L"../../Textures/red.png");
+	redTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+
+	myTextures[redTex->Name] = std::move(redTex);
 	
 	std::wstring texPath = mImGui->OpenFileDialog();
 	auto myHeightTex = std::make_unique<myTexture>("heightTex",texPath);
@@ -1299,6 +1304,10 @@ void D3DApp::BuildDescriptorHeaps()
 	
 	
 	CreateShaderResourceView(myTextures["whiteTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	
+	++mSrvDescriptorHeapObjCount;
+
+	CreateShaderResourceView(myTextures["redTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 	
 	++mSrvDescriptorHeapObjCount;
 	
@@ -1767,6 +1776,14 @@ void D3DApp::BuildMaterials()
 	checkboard->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	checkboard->Roughness = 0.5f;
 
+	auto red = std::make_unique<Material>();
+	red->Name = "redTex";
+	red->MatCBIndex = 4;
+	red->DiffuseSrvHeapIndex = 4;
+	red->DiffuseAlbedo = XMFLOAT4(1.0f, 0.2f, 0.2f, 0.2f);
+	red->FresnelR0 = XMFLOAT3(0.9f, 0.9f, 0.9f);
+	red->Roughness = 0.9f;
+
 	
 	// auto ice = std::make_unique<Material>();
 	// ice->Name = "ice";
@@ -1780,6 +1797,8 @@ void D3DApp::BuildMaterials()
 	mMaterials["skyMat"] = std::move(skyMat);
 	mMaterials["bricks"] = std::move(bricks);
 	mMaterials["checkboard"] = std::move(checkboard);
+	mMaterials["red"] = std::move(red);
+
 	// mMaterials["ice"] = std::move(ice);
 
 }
@@ -1838,6 +1857,36 @@ void D3DApp::BuildRenderItems()
 	
 	mRitemLayer[(int)RenderType::Sky].push_back(skyRitem.get());
 	mAllRitems.push_back(std::move(skyRitem));
+
+	// sphere
+	auto sphereRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
+	XMStoreFloat4x4(&sphereRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+	sphereRitem->TexTransform = MathHelper::Identity4x4();
+	sphereRitem->ObjCBIndex = 4;
+	sphereRitem->Mat = mMaterials["red"].get();
+	sphereRitem->Geo = mGeometries["shapeGeo"].get();
+	sphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	sphereRitem->IndexCount = sphereRitem->Geo->DrawArgs["sphere"].IndexCount;
+	sphereRitem->StartIndexLocation = sphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
+	sphereRitem->BaseVertexLocation = sphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+	sphereRitem->Bounds = sphereRitem->Geo->DrawArgs["sphere"].Bounds;
+	// skyRitem->SetUsingBB(true);
+
+	// skyRitem->Instances.resize(1);
+
+	InstanceData sphereID;
+	
+	XMStoreFloat4x4(&sphereID.World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	XMStoreFloat4x4(&sphereID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	sphereID.MaterialIndex = 4 % mMaterials.size();
+
+	sphereRitem->AddInstance(sphereID);
+
+	mSphere = sphereRitem.get();
+	
+	mRitemLayer[(int)RenderType::OpaqueTri].push_back(sphereRitem.get());
+	mAllRitems.push_back(std::move(sphereRitem));
+	
 
 	auto quadRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
 	quadRitem->World = MathHelper::Identity4x4();
@@ -2262,19 +2311,27 @@ void D3DApp::CalcHeightMod()
 	mNormalMapGenerator->SetDirty();
 }
 
-void D3DApp::OnMouseInput()
+void D3DApp::OnMouseInput(const GameTimer& gt)
 {
+	
 	if(GetKeyState(VK_LBUTTON)&0x8000 && mMouseRay->IsRayIntersectPlane()&&!mImGui->GetMouseIsHovering() )
 	{
 		switch(mMouseRay->GetRayMode())
 		{
 		case RayMode::HeightModification:
+			creationTimer = 0.0f;
 			CalcHeightMod();
 			break;
 		case RayMode::ObjectPlacing:
-			CreateRenderItem( mBox, mMousePosOnPlane,XMFLOAT3(1.0f,1.0f,1.0f),XMFLOAT3(0.0f,0.0f,0.0f));
+			creationTimer+=gt.DeltaTime();
+			if(creationTimer>=createCooldown)
+			{
+				CreateRenderItem( mBox, mMousePosOnPlane,XMFLOAT3(1.0f,1.0f,1.0f),XMFLOAT3(0.0f,0.0f,0.0f));
+				creationTimer = 0.0f;
+			}
 			break;
 		case RayMode::ObjectErase:
+			creationTimer = 0.0f;
 			EraseRenderItem(mMousePosOnPlane,5.0f);
 			break;
 		default:
@@ -2834,11 +2891,13 @@ void D3DApp::EraseRenderItem(XMFLOAT3 worldPos, float pRange)
 
 void D3DApp::UpdateObjectCursur(const GameTimer& gt)
 {
-	if(mMouseRay->GetRayMode()==1)
-		XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
-	else
-		XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
+	XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
+	XMStoreFloat4x4(&mSphere->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
 
+	if(mMouseRay->GetRayMode()==1)
+		XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixScaling(1.0f,1.0f,1.0f) * XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
+	else if(mMouseRay->GetRayMode()==2)
+		XMStoreFloat4x4(&mSphere->Instances[0].World,XMMatrixScaling(10.0f,10.0f,10.0f)*XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
 }
 
 

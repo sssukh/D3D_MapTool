@@ -169,7 +169,7 @@ private:
 
 	void CalcHeightMod();
 
-	void OnMouseInput();
+	void OnMouseInput(const GameTimer& gt);
 
 	void BuildShapeGeometry();
 
@@ -382,5 +382,11 @@ private:
 	std::vector<QuadTreeNode*> mQuadTree;
 
 	RenderItem* mBox;
+
+	RenderItem* mSphere;
+
+	const float createCooldown = 0.01f;
+
+	float creationTimer = 0.0f;
 };
 
