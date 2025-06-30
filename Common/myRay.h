@@ -9,7 +9,7 @@
 #include "myTexture.h"
 #include "UploadBuffer.h"
 
-struct RenderItem;
+class RenderItem;
 using namespace DirectX;
 
 enum RayMode 

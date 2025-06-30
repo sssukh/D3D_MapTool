@@ -23,6 +23,7 @@
 #include "myTexture.h"
 #include "QuadTreeNode.h"
 
+class ObjectManager;
 class ShadowMap;
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -33,15 +34,6 @@ using namespace DirectX;
 #pragma comment(lib, "dxgi.lib")
 
 const UINT Descriptors_Per_Frame =30;
-
-enum class RenderType
-{
-	Opaque = 0,
-	OpaqueTri = 1,
-	Sky = 2,
-	Debug = 3,
-	Count
-};
 
 struct HeightMapBuffer
 {
@@ -139,9 +131,9 @@ private:
 	void BuildShadersAndInputLayout();
 	void BuildPSOs();
 	void BuildFrameResources();
-	void BuildPlaneGeometry(float width = 10, float depth = 10, uint32_t m = 2, uint32_t n = 2);
+	// void BuildPlaneGeometry(float width = 10, float depth = 10, uint32_t m = 2, uint32_t n = 2);
 	void BuildMaterials();
-	void BuildRenderItems();
+	// void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList,const std::vector<RenderItem*>& ritems);
 	
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers();
@@ -159,8 +151,6 @@ private:
 	
 	void UpdateHeightMap(myTexture* pTexture);
 
-	RenderItem* GetPlane() const;
-
 	INT GetCurrentHeightMapOffset() const { return mMaxSrvCount + mMaxNormalCount + mHeightMapBuffer.mCurrentUsingIndex;}
 
 	void InitRay();
@@ -171,7 +161,7 @@ private:
 
 	void OnMouseInput(const GameTimer& gt);
 
-	void BuildShapeGeometry();
+	// void BuildShapeGeometry();
 
 	void SaveMapFile();
 
@@ -272,9 +262,9 @@ private:
 	ComPtr<ID3D12DescriptorHeap> mHeightMapDescriptorHeap = nullptr;
 	INT mHeightMapDescriptorHeapObjCount=0;
 
-	
-	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
-	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+	// TODO : 옮김 
+	// std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+	// std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	// std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 	std::unordered_map<std::string, std::unique_ptr<myTexture>> myTextures;
 
@@ -288,12 +278,16 @@ private:
 	RenderItem* mReflectedSkullRitem = nullptr;
 	RenderItem* mShadowedSkullRitem = nullptr;
 
-	// List of all the render items.
-	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+	// TODO : 옮김 
+	// // List of all the render items.
+	// std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+	//
+	// // Render items divided by PSO.
+	// std::vector<RenderItem*> mRitemLayer[(int)RenderType::Count];
 
-	// Render items divided by PSO.
-	std::vector<RenderItem*> mRitemLayer[(int)RenderType::Count];
+	/////////////////////////////////////////////////////////
 
+	
 	PassConstants mMainPassCB;
 	PassConstants mShadowPassCB;
 
@@ -381,12 +375,10 @@ private:
 
 	std::vector<QuadTreeNode*> mQuadTree;
 
-	RenderItem* mBox;
-
-	RenderItem* mSphere;
-
 	const float createCooldown = 0.01f;
 
 	float creationTimer = 0.0f;
+
+	ObjectManager* mObjectMng = nullptr;
 };
 

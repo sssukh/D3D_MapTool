@@ -5,6 +5,7 @@
 #include "pix3.h"
 #include "myRay.h"
 #include "NormalMapGenerator.h"
+#include "ObjectManager.h"
 #include "RenderItem.h"
 #include "ShadowMap.h"
 
@@ -172,6 +173,8 @@ bool D3DApp::Initialize()
 	if(!InitDirect3D())
 		return false;
 
+	mObjectMng = new ObjectManager();
+	
 	// mouse ray 
 	mMouseRay = new myRay(md3dDevice.Get());
 	
@@ -217,10 +220,10 @@ bool D3DApp::Initialize()
 
 	InitializeQuadTree(width,height);
 	
-	BuildPlaneGeometry(width,height,100,100);
-	BuildShapeGeometry();
+	mObjectMng->BuildPlaneGeometry(md3dDevice.Get(),mCommandList.Get(),width,height,100,100);
+	mObjectMng->BuildShapeGeometry(md3dDevice.Get(),mCommandList.Get());
 	BuildMaterials();
-	BuildRenderItems();
+	mObjectMng->InitializeRenderItems(md3dDevice.Get());
 	BuildFrameResources();
 	BuildPSOs();
 
@@ -397,9 +400,9 @@ void D3DApp::Update(const GameTimer& gt)
 
 	// update plane width, height in RayCB for CS
 	D3D12_RESOURCE_DESC tmpDesc = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc();
-	UINT tmpVertexByteSize = GetPlane()->Geo->VertexBufferByteSize;
-	UINT tmpVertexByteStride = GetPlane()->Geo->VertexByteStride;
-	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount/4);
+	UINT tmpVertexByteSize = mObjectMng->GetPlane()->Geo->VertexBufferByteSize;
+	UINT tmpVertexByteStride = mObjectMng->GetPlane()->Geo->VertexByteStride;
+	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,mObjectMng->GetGeometries()["planeGeo"]->DrawArgs["plane"].IndexCount/4);
 
 	// Delete
 	// UpdateObjectCBs(gt);
@@ -501,20 +504,20 @@ void D3DApp::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
 	if(mIsWireFrameMode)
 		mCommandList->SetPipelineState(mPSOs["opaqueWireFrame"].Get());
-	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::Opaque]);
+	DrawRenderItems(mCommandList.Get(),mObjectMng->GetRenderItemByRenderType(RenderType::Opaque));
 
 	mCommandList->SetPipelineState(mPSOs["opaqueTri"].Get());
-	DrawRenderItems(mCommandList.Get(),mRitemLayer[(int)RenderType::OpaqueTri]);
+	DrawRenderItems(mCommandList.Get(),mObjectMng->GetRenderItemByRenderType(RenderType::OpaqueTri));
 
 	if(bIsDebugging)
 	{
 		mCommandList->SetPipelineState(mPSOs["debug"].Get());
-		DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Debug]);
+		DrawRenderItems(mCommandList.Get(),mObjectMng->GetRenderItemByRenderType(RenderType::Debug));
 	}
 
 	// draw sky sphere
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Sky]);
+	DrawRenderItems(mCommandList.Get(), mObjectMng->GetRenderItemByRenderType(RenderType::Sky));
 	
 	
 	// ImGui Render
@@ -1048,58 +1051,6 @@ void D3DApp::OnKeyboardInput(const GameTimer& gt)
 	
 }
 
-
-// void D3DApp::UpdateObjectCBs(const GameTimer& gt)
-// {
-// 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-// 	for(auto& e : mAllRitems)
-// 	{
-// 		// Only update the cbuffer data if the constants have changed.  
-// 		// This needs to be tracked per frame resource.
-// 		if(e->NumFramesDirty > 0)
-// 		{
-// 			XMMATRIX world = XMLoadFloat4x4(&e->World);
-// 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
-//
-// 			ObjectConstants objConstants;
-// 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-// 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-//
-// 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
-//
-// 			// Next FrameResource need to be updated too.
-// 			e->NumFramesDirty--;
-// 		}
-// 	}
-// }
-//
-// void D3DApp::UpdateMaterialCBs(const GameTimer& gt)
-// {
-// 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-// 	for(auto& e : mMaterials)
-// 	{
-// 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
-// 		// data changes, it needs to be updated for each FrameResource.
-// 		Material* mat = e.second.get();
-// 		if(mat->NumFramesDirty > 0)
-// 		{
-// 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
-//
-// 			MaterialConstants matConstants;
-// 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-// 			matConstants.FresnelR0 = mat->FresnelR0;
-// 			matConstants.Roughness = mat->Roughness;
-// 			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
-//
-// 			// update and upload to uploadheap
-// 			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
-//
-// 			// Next FrameResource need to be updated too.
-// 			mat->NumFramesDirty--;
-// 		}
-// 	}
-// }
-
 void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = mCam.GetView();
@@ -1145,16 +1096,11 @@ void D3DApp::UpdateMainPassCB(const GameTimer& gt)
 	mMouseRay->UpdateRay();
 
 	{
-	// if(mMouseRay->IsRayIntersectPlane())
-	// 	CalcHeightMod();
 		CalcMouseRay();
 		mMousePosOnPlane = mMouseRay->GetIntersectionPos();
 	}
 	
-	// XMVECTOR point = XMVectorZero();
-	// XMVECTOR normal = XMLoadFloat3(&XMFLOAT3(0.0f,1.0f,0.0f));
-	//
-	// XMStoreFloat3(&mMousePosOnPlane,mMouseRay->PlaneLineIntersectVect(point,normal));
+
 	
 	mMainPassCB.MouseProjPos = mMousePosOnPlane;
 
@@ -1639,106 +1585,8 @@ void D3DApp::BuildFrameResources()
 	for(int i = 0; i < gNumFrameResources; ++i)
 	{
 		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-			2,  (UINT)mMaterials.size()));
+			2,  (UINT)mObjectMng->GetMaterials().size()));
 	}
-}
-
-void D3DApp::BuildPlaneGeometry(float width, float depth, uint32_t m, uint32_t n)
-{
-	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData plane = geoGen.CreateGrid(width,depth,m,n);
-
-	XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
-	XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
-
-	XMVECTOR vPlaneMin = XMLoadFloat3(&vMinf3);
-	XMVECTOR vPlaneMax = XMLoadFloat3(&vMaxf3);
-	
-	std::vector<Vertex> vertices(plane.Vertices.size());
-	for(int i=0;i<vertices.size();++i)
-	{
-		vertices[i].Pos = plane.Vertices[i].Position;
-		vertices[i].Normal = plane.Vertices[i].Normal;
-		vertices[i].TexC = plane.Vertices[i].TexC;
-
-		XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
-		vPlaneMax = XMVectorMax(vPlaneMax, P);
-		vPlaneMin = XMVectorMin(vPlaneMin, P);
-	}
-
-	BoundingBox planeBounds;
-	XMStoreFloat3(&planeBounds.Center, 0.5f*(vPlaneMin + vPlaneMax));
-	XMStoreFloat3(&planeBounds.Extents, 0.5f*(vPlaneMax - vPlaneMin));
-
-	UINT indexCount;
-
-	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "planeGeo";
-	
-	// 임시로 32bit 강제
-	if(true/*m*n>(UINT)1<<1*/)
-	{
-		std::vector<std::uint32_t> indices = plane.Indices32;
-		indexCount = (UINT)indices.size();
-		
-		const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	
-		const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint32_t);
-
-		ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-		CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),vertices.data(),vbByteSize);
-
-		ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
-		CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),indices.data(),ibByteSize);
-
-		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
-			,vertices.data(),vbByteSize,geo->VertexBufferUploader);
-
-		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
-			,indices.data(),ibByteSize,geo->IndexBufferUploader);
-
-		geo->VertexByteStride = sizeof(Vertex);
-		geo->VertexBufferByteSize = vbByteSize;
-		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-		geo->IndexBufferByteSize = ibByteSize;
-	}
-	else
-	{
-		std::vector<std::uint16_t> indices = plane.GetIndices16();
-		indexCount = (UINT)indices.size();
-
-		const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	
-		const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
-		ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-		CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),vertices.data(),vbByteSize);
-
-		ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
-		CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),indices.data(),ibByteSize);
-
-		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
-			,vertices.data(),vbByteSize,geo->VertexBufferUploader);
-
-		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),mCommandList.Get()
-			,indices.data(),ibByteSize,geo->IndexBufferUploader);
-
-		geo->VertexByteStride = sizeof(Vertex);
-		geo->VertexBufferByteSize = vbByteSize;
-		geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-		geo->IndexBufferByteSize = ibByteSize;
-	}
-	
-	SubmeshGeometry submesh;
-	submesh.IndexCount = indexCount;
-	submesh.VertexCount = plane.Vertices.size();
-	submesh.StartIndexLocation =0;
-	submesh.BaseVertexLocation = 0;
-	submesh.Bounds = planeBounds;
-
-	geo->DrawArgs["plane"] = submesh;
-
-	mGeometries["planeGeo"] = std::move(geo);
 }
 
 void D3DApp::BuildMaterials()
@@ -1793,162 +1641,18 @@ void D3DApp::BuildMaterials()
 	// ice->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	// ice->Roughness = 0.5f;
 	
-	mMaterials["planeMat"] = std::move(planeMat);
-	mMaterials["skyMat"] = std::move(skyMat);
-	mMaterials["bricks"] = std::move(bricks);
-	mMaterials["checkboard"] = std::move(checkboard);
-	mMaterials["red"] = std::move(red);
+	mObjectMng->GetMaterials()["planeMat"] = std::move(planeMat);
+	mObjectMng->GetMaterials()["skyMat"] = std::move(skyMat);
+	mObjectMng->GetMaterials()["bricks"] = std::move(bricks);
+	mObjectMng->GetMaterials()["checkboard"] = std::move(checkboard);
+	mObjectMng->GetMaterials()["red"] = std::move(red);
 
 	// mMaterials["ice"] = std::move(ice);
 
 }
 
-void D3DApp::BuildRenderItems()
-{
-	auto planeRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
-	planeRitem->World = MathHelper::Identity4x4();
-	planeRitem->TexTransform = MathHelper::Identity4x4();
-	planeRitem->ObjCBIndex = 0;
-	planeRitem->Mat = mMaterials["planeMat"].get();
-	planeRitem->Geo = mGeometries["planeGeo"].get();
-	planeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
-	planeRitem->IndexCount = planeRitem->Geo->DrawArgs["plane"].IndexCount;
-	planeRitem->StartIndexLocation = planeRitem->Geo->DrawArgs["plane"].StartIndexLocation;
-	planeRitem->BaseVertexLocation = planeRitem->Geo->DrawArgs["plane"].BaseVertexLocation;
-	planeRitem->Bounds = planeRitem->Geo->DrawArgs["plane"].Bounds;
-	
-	// planeRitem->SetUsingBB(true);
-	// planeRitem->Instances.resize(1);
-
-	InstanceData planeID;
-	
-	XMStoreFloat4x4(&planeID.World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	XMStoreFloat4x4(&planeID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	planeID.MaterialIndex = 0 % mMaterials.size();
-
-	planeRitem->AddInstance(planeID);
-	
-	mRitemLayer[(int)RenderType::Opaque].push_back(planeRitem.get());
-	mAllRitems.push_back(std::move(planeRitem));
-
-	// build sky sphere
-	auto skyRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
-	XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-	skyRitem->TexTransform = MathHelper::Identity4x4();
-	skyRitem->ObjCBIndex = 1;
-	skyRitem->Mat = mMaterials["skyMat"].get();
-	skyRitem->Geo = mGeometries["shapeGeo"].get();
-	skyRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	skyRitem->IndexCount = skyRitem->Geo->DrawArgs["sphere"].IndexCount;
-	skyRitem->StartIndexLocation = skyRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
-	skyRitem->BaseVertexLocation = skyRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
-	skyRitem->Bounds = skyRitem->Geo->DrawArgs["sphere"].Bounds;
-	// skyRitem->SetUsingBB(true);
-
-	// skyRitem->Instances.resize(1);
-
-	InstanceData skyID;
-	
-	XMStoreFloat4x4(&skyID.World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-	XMStoreFloat4x4(&skyID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	skyID.MaterialIndex = 1 % mMaterials.size();
-
-	skyRitem->AddInstance(skyID);
-	
-	mRitemLayer[(int)RenderType::Sky].push_back(skyRitem.get());
-	mAllRitems.push_back(std::move(skyRitem));
-
-	// sphere
-	auto sphereRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
-	XMStoreFloat4x4(&sphereRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-	sphereRitem->TexTransform = MathHelper::Identity4x4();
-	sphereRitem->ObjCBIndex = 4;
-	sphereRitem->Mat = mMaterials["red"].get();
-	sphereRitem->Geo = mGeometries["shapeGeo"].get();
-	sphereRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	sphereRitem->IndexCount = sphereRitem->Geo->DrawArgs["sphere"].IndexCount;
-	sphereRitem->StartIndexLocation = sphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
-	sphereRitem->BaseVertexLocation = sphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
-	sphereRitem->Bounds = sphereRitem->Geo->DrawArgs["sphere"].Bounds;
-	// skyRitem->SetUsingBB(true);
-
-	// skyRitem->Instances.resize(1);
-
-	InstanceData sphereID;
-	
-	XMStoreFloat4x4(&sphereID.World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	XMStoreFloat4x4(&sphereID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	sphereID.MaterialIndex = 4 % mMaterials.size();
-
-	sphereRitem->AddInstance(sphereID);
-
-	mSphere = sphereRitem.get();
-	
-	mRitemLayer[(int)RenderType::OpaqueTri].push_back(sphereRitem.get());
-	mAllRitems.push_back(std::move(sphereRitem));
-	
-
-	auto quadRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1);
-	quadRitem->World = MathHelper::Identity4x4();
-	quadRitem->TexTransform = MathHelper::Identity4x4();
-	quadRitem->ObjCBIndex = 2;
-	quadRitem->Mat = mMaterials["bricks"].get();
-	quadRitem->Geo = mGeometries["shapeGeo"].get();
-	quadRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	quadRitem->IndexCount = quadRitem->Geo->DrawArgs["quad"].IndexCount;
-	quadRitem->StartIndexLocation = quadRitem->Geo->DrawArgs["quad"].StartIndexLocation;
-	quadRitem->BaseVertexLocation = quadRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
-	quadRitem->Bounds = quadRitem->Geo->DrawArgs["quad"].Bounds;
-	
-	// quadRitem->Instances.resize(1);
-
-	InstanceData quadID;
-	
-	XMStoreFloat4x4(&quadID.World, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	XMStoreFloat4x4(&quadID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	quadID.MaterialIndex = 2 % mMaterials.size();
-
-	quadRitem->AddInstance(quadID);
-	
-	mRitemLayer[(int)RenderType::Debug].push_back(quadRitem.get());
-	mAllRitems.push_back(std::move(quadRitem));
-
-	auto boxRitem = std::make_unique<RenderItem>(md3dDevice.Get(),1000);
-	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(1.0f, 1.0f, 1.0f)*XMMatrixTranslation(0.0f, 0.0f, 0.0f));
-	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
-	boxRitem->ObjCBIndex = 1;
-	boxRitem->Mat = mMaterials["checkboard"].get();
-	boxRitem->Geo = mGeometries["shapeGeo"].get();
-	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
-	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
-	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
-	boxRitem->Bounds = boxRitem->Geo->DrawArgs["box"].Bounds;
-	
-	boxRitem->SetUsingBB(true);
-
-	// boxRitem->Instances.resize(1);
-
-	InstanceData boxID;
-	
-	XMStoreFloat4x4(&boxID.World, XMMatrixTranslation(0.0f, 50.0f, 0.0f));
-	XMStoreFloat4x4(&boxID.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	boxID.MaterialIndex = 3 % mMaterials.size();
-
-	boxRitem->AddInstance(boxID);
-	
-	mBox = boxRitem.get();
-	mRitemLayer[(int)RenderType::OpaqueTri].push_back(boxRitem.get());
-	mAllRitems.push_back(std::move(boxRitem));
-}
-
 void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-	// UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-	// UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
-	//
-	// auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-	// auto matCB = mCurrFrameResource->MaterialCB->Resource();
 
 	// For each render item...
 	for(size_t i = 0; i < ritems.size(); ++i)
@@ -1959,17 +1663,6 @@ void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		// tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
-		// using button to change plane texture
-		// tex.Offset(mTextureIndex, mCbvSrvUavDescriptorSize);
-
-
-		// D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
-		// D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
-
-		// cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-		// cmdList->SetGraphicsRootConstantBufferView(2, matCBAddress);
-
 		auto InstanceBuffer = ri->InstanceBuffer->Resource();
 
 		// 0번째에 InstanceBuffer 묶기
@@ -1978,9 +1671,6 @@ void D3DApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
 }
-
-
-
 
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> D3DApp::GetStaticSamplers()
@@ -2130,8 +1820,6 @@ void D3DApp::BuildPostProcessRootSignature()
 		serializedRootSig->GetBufferSize(),
 		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
 
-
-	
 }
 
 void D3DApp::BuildRayRootSignature()
@@ -2202,10 +1890,6 @@ void D3DApp::UpdateHeightMap(myTexture* pTexture)
 	}
 }
 
-RenderItem* D3DApp::GetPlane() const
-{
-	return mAllRitems[0].get();
-}
 
 void D3DApp::InitRay()
 {
@@ -2223,7 +1907,7 @@ void D3DApp::InitRay()
 
 	mMouseRay->BuildModPso();
 
-	mMouseRay->SetVertexIndexResource(mGeometries["planeGeo"]->VertexBufferGPU.Get(),mGeometries["planeGeo"]->IndexBufferGPU.Get());
+	mMouseRay->SetVertexIndexResource(mObjectMng->GetGeometries()["planeGeo"]->VertexBufferGPU.Get(),mObjectMng->GetGeometries()["planeGeo"]->IndexBufferGPU.Get());
 
 	DXGI_FORMAT heightFormat = mHeightMapBuffer.GetCurrentUsingHeightmap()->Resource->GetDesc().Format;
 	mMouseRay->SetFormat(heightFormat);
@@ -2232,7 +1916,7 @@ void D3DApp::InitRay()
 	
 	mMouseRay->BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize)
 			,CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),mCurrentUAVDescriptorOffset,mCbvSrvUavDescriptorSize),mCbvSrvUavDescriptorSize,
-			mGeometries["planeGeo"]->DrawArgs["plane"].VertexCount,mGeometries["planeGeo"]->DrawArgs["plane"].IndexCount);
+			mObjectMng->GetGeometries()["planeGeo"]->DrawArgs["plane"].VertexCount,mObjectMng->GetGeometries()["planeGeo"]->DrawArgs["plane"].IndexCount);
 	
 	mMouseRay->InitBuffer(mCommandList.Get(),mCommandQueue.Get(),mDirectCmdListAlloc.Get());
 }
@@ -2326,7 +2010,7 @@ void D3DApp::OnMouseInput(const GameTimer& gt)
 			creationTimer+=gt.DeltaTime();
 			if(creationTimer>=createCooldown)
 			{
-				CreateRenderItem( mBox, mMousePosOnPlane,XMFLOAT3(1.0f,1.0f,1.0f),XMFLOAT3(0.0f,0.0f,0.0f));
+				CreateRenderItem( mObjectMng->GetBox(), mMousePosOnPlane,XMFLOAT3(1.0f,1.0f,1.0f),XMFLOAT3(0.0f,0.0f,0.0f));
 				creationTimer = 0.0f;
 			}
 			break;
@@ -2339,138 +2023,6 @@ void D3DApp::OnMouseInput(const GameTimer& gt)
 		}
 		
 	}
-}
-
-void D3DApp::BuildShapeGeometry()
-{
-	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
-	GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
-	GeometryGenerator::MeshData box = geoGen.CreateBox(10.0f,10.0f,10.0f,2);
-
-	UINT sphereVertexOffset = 0;
-	UINT quadVertexOffset = (UINT)sphere.Vertices.size();
-	UINT boxVertexOffset = quadVertexOffset + (UINT)quad.Vertices.size();
-
-	UINT sphereIndexOffset =0;
-	UINT quadIndexOffset = (UINT)sphere.Indices32.size();
-	UINT boxIndexOffset = quadIndexOffset + (UINT)quad.Indices32.size();
-	
-	SubmeshGeometry sphereSubmesh;
-	sphereSubmesh.IndexCount = sphere.Indices32.size();
-	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
-	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
-
-	SubmeshGeometry quadSubmesh;
-	quadSubmesh.IndexCount = (UINT)quad.Indices32.size();
-	quadSubmesh.StartIndexLocation = quadIndexOffset;
-	quadSubmesh.BaseVertexLocation = quadVertexOffset;
-
-	SubmeshGeometry boxSubmesh;
-	boxSubmesh.IndexCount = box.Indices32.size();
-	boxSubmesh.StartIndexLocation = boxIndexOffset;
-	boxSubmesh.BaseVertexLocation = boxVertexOffset;
-
-	auto totalVertexCount = sphere.Vertices.size() + quad.Vertices.size() + box.Vertices.size();
-	
-	std::vector<Vertex> vertices(totalVertexCount);
-
-	XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
-	XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
-
-	XMVECTOR vSphereMin = XMLoadFloat3(&vMinf3);
-	XMVECTOR vSphereMax = XMLoadFloat3(&vMaxf3);
-	
-	UINT k=0;
-	for(size_t i =0;i< sphere.Vertices.size(); ++i,++k)
-	{
-		vertices[k].Pos = sphere.Vertices[i].Position;
-		vertices[k].Normal = sphere.Vertices[i].Normal;
-		vertices[k].TexC = sphere.Vertices[i].TexC;
-
-		XMVECTOR P = XMLoadFloat3(&vertices[k].Pos);
-		vSphereMax = XMVectorMax(vSphereMax, P);
-		vSphereMin = XMVectorMin(vSphereMin, P);
-	}
-
-	BoundingBox sphereBounds;
-	XMStoreFloat3(&sphereBounds.Center, 0.5f*(vSphereMin + vSphereMax));
-	XMStoreFloat3(&sphereBounds.Extents, 0.5f*(vSphereMax - vSphereMin));
-
-	XMVECTOR vQuadMin = XMLoadFloat3(&vMinf3);
-	XMVECTOR vQuadMax = XMLoadFloat3(&vMaxf3);
-	
-	for(int i = 0; i < quad.Vertices.size(); ++i, ++k)
-	{
-		vertices[k].Pos = quad.Vertices[i].Position;
-		vertices[k].Normal = quad.Vertices[i].Normal;
-		vertices[k].TexC = quad.Vertices[i].TexC;
-
-		XMVECTOR P = XMLoadFloat3(&vertices[k].Pos);
-		vQuadMax = XMVectorMax(vQuadMax, P);
-		vQuadMin = XMVectorMin(vQuadMin, P);
-	}
-
-	BoundingBox quadBounds;
-	XMStoreFloat3(&quadBounds.Center, 0.5f*(vQuadMin + vQuadMax));
-	XMStoreFloat3(&quadBounds.Extents, 0.5f*(vQuadMax - vQuadMin));
-	
-	XMVECTOR vBoxMin = XMLoadFloat3(&vMinf3);
-	XMVECTOR vBoxMax = XMLoadFloat3(&vMaxf3);
-	
-	for(size_t i = 0; i < box.Vertices.size(); ++i, ++k)
-	{
-		vertices[k].Pos = box.Vertices[i].Position;
-		vertices[k].Normal = box.Vertices[i].Normal;
-		vertices[k].TexC = box.Vertices[i].TexC;
-
-		XMVECTOR P = XMLoadFloat3(&vertices[k].Pos);
-		vBoxMax = XMVectorMax(vBoxMax, P);
-		vBoxMin = XMVectorMin(vBoxMin, P);
-	}
-
-	BoundingBox boxBounds;
-	XMStoreFloat3(&boxBounds.Center, 0.5f*(vBoxMin + vBoxMax));
-	XMStoreFloat3(&boxBounds.Extents, 0.5f*(vBoxMax - vBoxMin));
-	
-	std::vector<std::uint32_t> indices;
-	indices.insert(indices.end(),std::begin(sphere.Indices32),std::end(sphere.Indices32));
-	indices.insert(indices.end(),std::begin(quad.Indices32),std::end(quad.Indices32));
-	indices.insert(indices.end(),std::begin(box.Indices32),std::end(box.Indices32));
-
-
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint32_t);
-
-	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "shapeGeo";
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),vertices.data(),vbByteSize);
-
-	ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),indices.data(),ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), vertices.data(), vbByteSize,geo->VertexBufferUploader);
-
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(),indices.data(),ibByteSize,geo->IndexBufferUploader);
-
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	sphereSubmesh.Bounds = sphereBounds;
-	boxSubmesh.Bounds = boxBounds;
-	quadSubmesh.Bounds = quadBounds;
-	
-	geo->DrawArgs["sphere"] = sphereSubmesh;
-	geo->DrawArgs["quad"] = quadSubmesh;
-	geo->DrawArgs["box"] = boxSubmesh;
-	
-	mGeometries[geo->Name] = std::move(geo);
 }
 
 void D3DApp::SaveMapFile()
@@ -2619,11 +2171,11 @@ void D3DApp::DrawSceneToShadowMap()
 
 	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
 
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::Opaque]);
+	DrawRenderItems(mCommandList.Get(), mObjectMng->GetRenderItemByRenderType(RenderType::Opaque));
 
 	mCommandList->SetPipelineState(mPSOs["shadow_opaque_tri"].Get());
 
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderType::OpaqueTri]);
+	DrawRenderItems(mCommandList.Get(), mObjectMng->GetRenderItemByRenderType(RenderType::OpaqueTri));
 
 	// Change back to GENERIC_READ so we can read the texture in a shader.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
@@ -2720,7 +2272,7 @@ void D3DApp::UpdateInstanceBuffer(const GameTimer& gt)
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 
 	
-	for(auto& e : mAllRitems)
+	for(auto& e : mObjectMng->GetAllRenderItems())
 	{
 		auto currInstanceBuffer = e->InstanceBuffer.get();
 		const auto& instanceData = e->Instances;
@@ -2782,7 +2334,7 @@ void D3DApp::UpdateInstanceBuffer(const GameTimer& gt)
 void D3DApp::UpdateMaterialBuffer(const GameTimer& gt)
 {
 	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
-	for(auto& e : mMaterials)
+	for(auto& e : mObjectMng->GetMaterials())
 	{
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
 		// data changes, it needs to be updated for each FrameResource.
@@ -2856,7 +2408,7 @@ void D3DApp::CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldS
 			InstanceData nID;
 			XMStoreFloat4x4(&nID.World,XMMatrixRotationRollPitchYaw(worldRot.x,worldRot.y,worldRot.z)*XMMatrixScaling(worldScale.x,worldScale.y,worldScale.z) * XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z));
 			XMStoreFloat4x4(&nID.TexTransform,XMMatrixScaling(1.0f,1.0f,1.0f));
-			nID.MaterialIndex = 3 % mMaterials.size();
+			nID.MaterialIndex = 3 % mObjectMng->GetMaterials().size();
 
 			nIR.InstanceID = pRI->AddInstance(nID);
 			
@@ -2882,7 +2434,7 @@ void D3DApp::EraseRenderItem(XMFLOAT3 worldPos, float pRange)
 				// instanceData에 dirtyflag 같은 변수를 추가해서
 				// 제거를 하게되면 quadTree에 추가한 index값이 더이상 유효한 정보가 아니게 된다.
 				// 이를 어떻게 관리하면 좋을까...
-				mBox->RemoveInstanceByID(instanceIDRemoving);
+				mObjectMng->GetBox()->RemoveInstanceByID(instanceIDRemoving);
 				qt->RemoveInstance(instanceIDRemoving);
 			}
 		}
@@ -2891,22 +2443,11 @@ void D3DApp::EraseRenderItem(XMFLOAT3 worldPos, float pRange)
 
 void D3DApp::UpdateObjectCursur(const GameTimer& gt)
 {
-	XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
-	XMStoreFloat4x4(&mSphere->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
+	XMStoreFloat4x4(&mObjectMng->GetBox()->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
+	XMStoreFloat4x4(&mObjectMng->GetSphere()->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
 
 	if(mMouseRay->GetRayMode()==1)
-		XMStoreFloat4x4(&mBox->Instances[0].World,XMMatrixScaling(1.0f,1.0f,1.0f) * XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
+		XMStoreFloat4x4(&mObjectMng->GetBox()->Instances[0].World,XMMatrixScaling(1.0f,1.0f,1.0f) * XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
 	else if(mMouseRay->GetRayMode()==2)
-		XMStoreFloat4x4(&mSphere->Instances[0].World,XMMatrixScaling(10.0f,10.0f,10.0f)*XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
+		XMStoreFloat4x4(&mObjectMng->GetSphere()->Instances[0].World,XMMatrixScaling(10.0f,10.0f,10.0f)*XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
 }
-
-
-
-
-
-
-
-
-
-
-
