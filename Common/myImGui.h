@@ -93,6 +93,8 @@ public:
     bool DrawDebugWindow(bool bIsWindowOpened);
 
     UINT DrawChangeRayModeWindow();
+
+    float* DrawObjScaleWindow(float& x, float& y, float& z);
     
     bool GetMouseIsHovering() { return bIsMouseHovering; }
 

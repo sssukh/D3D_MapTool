@@ -146,6 +146,11 @@ int D3DApp::Run()
 				}
 
 				bIsDebugging = mImGui->DrawDebugWindow(bIsDebugging);
+
+				XMFLOAT3 tmpfloat3 = mObjectMng->GetScale();
+				float* tmp = mImGui->DrawObjScaleWindow(tmpfloat3.x,tmpfloat3.y,tmpfloat3.z);
+
+				mObjectMng->SetScale(tmp[0],tmp[1],tmp[2]);
 				
                 Draw(mTimer);
 
@@ -224,6 +229,7 @@ bool D3DApp::Initialize()
 	mObjectMng->BuildShapeGeometry(md3dDevice.Get(),mCommandList.Get());
 	BuildMaterials();
 	mObjectMng->InitializeRenderItems(md3dDevice.Get());
+	mObjectMng->CreateOBJ(md3dDevice.Get(),mCommandList.Get(),L"C:\\MapTool\\Resources\\Trava Kolosok.obj");
 	BuildFrameResources();
 	BuildPSOs();
 
@@ -1146,6 +1152,11 @@ void D3DApp::LoadTextures()
 	redTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
 
 	myTextures[redTex->Name] = std::move(redTex);
+
+	auto grassTex = std::make_unique<myTexture>("grassTex",L"../../Textures/grass.png");
+	grassTex->CreateTextureFromFileName(md3dDevice.Get(),mCommandList.Get());
+
+	myTextures[grassTex->Name] = std::move(grassTex);
 	
 	std::wstring texPath = mImGui->OpenFileDialog();
 	auto myHeightTex = std::make_unique<myTexture>("heightTex",texPath);
@@ -1254,6 +1265,10 @@ void D3DApp::BuildDescriptorHeaps()
 	++mSrvDescriptorHeapObjCount;
 
 	CreateShaderResourceView(myTextures["redTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
+	
+	++mSrvDescriptorHeapObjCount;
+
+	CreateShaderResourceView(myTextures["grassTex"].get(),mSrvDescriptorHeap.Get(),mSrvDescriptorHeapObjCount,mCbvSrvUavDescriptorSize);
 	
 	++mSrvDescriptorHeapObjCount;
 	
@@ -1632,6 +1647,13 @@ void D3DApp::BuildMaterials()
 	red->FresnelR0 = XMFLOAT3(0.9f, 0.9f, 0.9f);
 	red->Roughness = 0.9f;
 
+	auto grass = std::make_unique<Material>();
+	grass->Name = "redTex";
+	grass->MatCBIndex = 5;
+	grass->DiffuseSrvHeapIndex = 5;
+	grass->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	grass->FresnelR0 = XMFLOAT3(0.9f, 0.9f, 0.9f);
+	grass->Roughness = 0.9f;
 	
 	// auto ice = std::make_unique<Material>();
 	// ice->Name = "ice";
@@ -1646,6 +1668,7 @@ void D3DApp::BuildMaterials()
 	mObjectMng->GetMaterials()["bricks"] = std::move(bricks);
 	mObjectMng->GetMaterials()["checkboard"] = std::move(checkboard);
 	mObjectMng->GetMaterials()["red"] = std::move(red);
+	mObjectMng->GetMaterials()["grass"] = std::move(grass);
 
 	// mMaterials["ice"] = std::move(ice);
 
@@ -1997,7 +2020,6 @@ void D3DApp::CalcHeightMod()
 
 void D3DApp::OnMouseInput(const GameTimer& gt)
 {
-	
 	if(GetKeyState(VK_LBUTTON)&0x8000 && mMouseRay->IsRayIntersectPlane()&&!mImGui->GetMouseIsHovering() )
 	{
 		switch(mMouseRay->GetRayMode())
@@ -2010,7 +2032,7 @@ void D3DApp::OnMouseInput(const GameTimer& gt)
 			creationTimer+=gt.DeltaTime();
 			if(creationTimer>=createCooldown)
 			{
-				CreateRenderItem( mObjectMng->GetBox(), mMousePosOnPlane,XMFLOAT3(1.0f,1.0f,1.0f),XMFLOAT3(0.0f,0.0f,0.0f));
+				CreateRenderItem( mObjectMng->GetObj(), mMousePosOnPlane,mObjectMng->GetScale(),XMFLOAT3(0.0f,0.0f,0.0f));
 				creationTimer = 0.0f;
 			}
 			break;
@@ -2391,14 +2413,17 @@ void D3DApp::CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldS
 {
 	BoundingBox nbb = pRI->Bounds;
 
-	DirectX::XMMATRIX nWorld = XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z);
+	// TODO : bb의 transform이 이동만 지원한다.
+	// scale을 지원하는 함수도 있지만 x,y,z 모두 균일하게 적용된다.
+	// 나는 x,y,z 모든 방향의 크기를 수정하고 있기 때문에 이를 다룰 방법을 생각해봐야겠다.
+	DirectX::XMMATRIX nWorld = XMMatrixScaling(worldScale.x,worldScale.y,worldScale.z)*XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z);
 
-	nbb.Transform(nbb,nWorld);
-
+	BoundingBox worldBB;
+	nbb.Transform(worldBB,nWorld);
 
 	InstanceRef nIR;
 	nIR.ParentItem = pRI;
-	nIR.WorldBounds = nbb;
+	nIR.WorldBounds = worldBB;
 	
 	for(QuadTreeNode* qt : mQuadTree)
 	{
@@ -2431,10 +2456,8 @@ void D3DApp::EraseRenderItem(XMFLOAT3 worldPos, float pRange)
 			for(InstanceRef ir : vIR)
 			{
 				UINT instanceIDRemoving = ir.InstanceID;
-				// instanceData에 dirtyflag 같은 변수를 추가해서
-				// 제거를 하게되면 quadTree에 추가한 index값이 더이상 유효한 정보가 아니게 된다.
-				// 이를 어떻게 관리하면 좋을까...
-				mObjectMng->GetBox()->RemoveInstanceByID(instanceIDRemoving);
+				
+				ir.ParentItem->RemoveInstanceByID(instanceIDRemoving);
 				qt->RemoveInstance(instanceIDRemoving);
 			}
 		}
@@ -2443,11 +2466,14 @@ void D3DApp::EraseRenderItem(XMFLOAT3 worldPos, float pRange)
 
 void D3DApp::UpdateObjectCursur(const GameTimer& gt)
 {
-	XMStoreFloat4x4(&mObjectMng->GetBox()->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
+	XMStoreFloat4x4(&mObjectMng->GetObj()->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
 	XMStoreFloat4x4(&mObjectMng->GetSphere()->Instances[0].World,XMMatrixScaling(0.0f,0.0f,0.0f));
 
 	if(mMouseRay->GetRayMode()==1)
-		XMStoreFloat4x4(&mObjectMng->GetBox()->Instances[0].World,XMMatrixScaling(1.0f,1.0f,1.0f) * XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
+	{
+		XMFLOAT3 tmp = mObjectMng->GetScale();
+		XMStoreFloat4x4(&mObjectMng->GetObj()->Instances[0].World,XMMatrixScaling(tmp.x,tmp.y,tmp.z) * XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
+	}
 	else if(mMouseRay->GetRayMode()==2)
 		XMStoreFloat4x4(&mObjectMng->GetSphere()->Instances[0].World,XMMatrixScaling(10.0f,10.0f,10.0f)*XMMatrixTranslation(mMousePosOnPlane.x,mMousePosOnPlane.y,mMousePosOnPlane.z));
 }

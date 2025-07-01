@@ -124,7 +124,7 @@ void ObjectManager::InitializeRenderItems(ID3D12Device* md3dDevice)
 	
 	XMStoreFloat4x4(&quadID.World, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	XMStoreFloat4x4(&quadID.TexTransform, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	quadID.MaterialIndex = 2 % mMaterials.size();
+	quadID.MaterialIndex = 1 % mMaterials.size();
 
 	quadRitem->AddInstance(quadID);
 	
@@ -149,7 +149,7 @@ void ObjectManager::InitializeRenderItems(ID3D12Device* md3dDevice)
 
 	InstanceData boxID;
 	
-	XMStoreFloat4x4(&boxID.World, DirectX::XMMatrixTranslation(0.0f, 50.0f, 0.0f));
+	XMStoreFloat4x4(&boxID.World, DirectX::XMMatrixTranslation(0.0f, 0.0f, 0.0f));
 	XMStoreFloat4x4(&boxID.TexTransform, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxID.MaterialIndex = 3 % mMaterials.size();
 
@@ -362,4 +362,177 @@ void ObjectManager::BuildShapeGeometry(ID3D12Device* md3dDevice, ID3D12GraphicsC
 	geo->DrawArgs["box"] = boxSubmesh;
 	
 	mGeometries[geo->Name] = std::move(geo);
+}
+
+bool ObjectManager::LoadOBJ(const std::wstring& filename, std::vector<Vertex>& outVertices,
+	std::vector<uint32_t>& outIndices)
+{
+	std::ifstream file(filename);
+	std::string line;
+    
+	std::vector<XMFLOAT3> positions;
+	std::vector<XMFLOAT3> normals;
+	std::vector<XMFLOAT2> texCoords;
+    
+	while (std::getline(file, line)) {
+		std::istringstream iss(line);
+		std::string type;
+		iss >> type;
+        
+		if (type == "v")
+		{
+			XMFLOAT3 pos;
+			iss >> pos.x >> pos.y >> pos.z;
+			positions.push_back(pos);
+		}
+		// vt, vn 처리 생략...
+		if(type=="vt")
+		{
+			XMFLOAT2 texc;
+			iss >>texc.x>>texc.y;
+			texCoords.push_back(texc);
+		}
+
+		if(type=="vn")
+		{
+			XMFLOAT3 norm;
+			iss>>norm.x>>norm.y>>norm.z;
+			normals.push_back(norm);
+		}
+        
+		if (type == "f")
+		{
+			for (int i = 0; i < 3; ++i)
+			{
+				std::string faceData;
+				iss >> faceData;
+                
+				// '1/2/3' 형식 파싱
+				std::replace(faceData.begin(), faceData.end(), '/', ' ');
+				std::istringstream fss(faceData);
+                
+				uint32_t idx[3];
+				fss >> idx[0] >> idx[1] >> idx[2];
+                
+				// 인덱스 저장 (OBJ는 1부터 시작)
+				outIndices.push_back(outVertices.size());
+                
+				Vertex vtx;
+				vtx.Pos = positions[idx[0]-1];
+				vtx.TexC = texCoords[idx[1]-1];
+				vtx.Normal = normals[idx[2]-1];
+                
+				outVertices.push_back(vtx);
+			}
+		}
+	}
+	return true;
+}
+
+bool ObjectManager::CreateBufferAndUpload(ID3D12Device* md3dDevice, ID3D12GraphicsCommandList* mCommandList,std::vector<Vertex>& Vertices, std::vector<uint32_t>& Indices)
+{
+	// 일단 단일 버퍼 캐싱은 다음으로 보류 
+	// MeshGeometry* meshGeo = mGeometries["shapeGeo"].get();
+	
+	SubmeshGeometry OBJSubmesh;
+	OBJSubmesh.IndexCount = (UINT)Indices.size();
+	OBJSubmesh.StartIndexLocation = 0;// (UINT)meshGeo->IndexBufferByteSize/sizeof(uint32_t);
+	OBJSubmesh.BaseVertexLocation = 0;//(UINT)meshGeo->VertexBufferByteSize/meshGeo->VertexByteStride;
+
+	XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
+	XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
+
+	XMVECTOR vObjMin = XMLoadFloat3(&vMinf3);
+	XMVECTOR vObjMax = XMLoadFloat3(&vMaxf3);
+
+	// Bounding Box 값 구하기 
+	for(size_t i =0;i< Vertices.size(); ++i)
+	{
+		XMVECTOR P = XMLoadFloat3(&Vertices[i].Pos);
+		vObjMax = XMVectorMax(vObjMax, P);
+		vObjMin = XMVectorMin(vObjMin, P);
+	}
+
+	BoundingBox objBound;
+	XMStoreFloat3(&objBound.Center, 0.5f*(vObjMax + vObjMin));
+	XMStoreFloat3(&objBound.Extents, 0.5f*(vObjMax - vObjMin));
+
+	OBJSubmesh.Bounds = objBound;
+	
+	const UINT vbByteSize = (UINT)Vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)Indices.size() * sizeof(std::uint32_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "OBJ";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(),Vertices.data(),vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize,&geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(),Indices.data(),ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice,
+		mCommandList, Vertices.data(), vbByteSize,geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice,
+		mCommandList,Indices.data(),ibByteSize,geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+	
+	geo->DrawArgs["Obj"] = OBJSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
+}
+
+void ObjectManager::BuildRenderItem(ID3D12Device* md3dDevice)
+{
+	auto objRitem =std::make_unique<RenderItem>(md3dDevice,100);
+	objRitem->World = MathHelper::Identity4x4();
+	objRitem->TexTransform = MathHelper::Identity4x4();
+	objRitem->ObjCBIndex = 0;
+	objRitem->Mat = mMaterials["planeMat"].get();
+	objRitem->Geo = mGeometries["OBJ"].get();
+	objRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	objRitem->IndexCount = objRitem->Geo->DrawArgs["Obj"].IndexCount;
+	objRitem->StartIndexLocation = objRitem->Geo->DrawArgs["Obj"].StartIndexLocation;
+	objRitem->BaseVertexLocation = objRitem->Geo->DrawArgs["Obj"].BaseVertexLocation;
+	objRitem->Bounds = objRitem->Geo->DrawArgs["Obj"].Bounds;
+	
+	objRitem->SetUsingBB(true);
+
+	InstanceData objID;
+	
+	XMStoreFloat4x4(&objID.World, DirectX::XMMatrixScaling(0.05f, 0.1f, 0.05f)*XMMatrixTranslation(0.0f,0.0f,0.0f));
+	XMStoreFloat4x4(&objID.TexTransform, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	objID.MaterialIndex = 5 % mMaterials.size();
+
+	objRitem->AddInstance(objID);
+
+	mObj = objRitem.get();
+	
+	mRitemLayer[(int)RenderType::OpaqueTri].push_back(objRitem.get());
+	mAllRitems.push_back(std::move(objRitem));
+}
+
+void ObjectManager::CreateOBJ(ID3D12Device* md3dDevice, ID3D12GraphicsCommandList* mCommandList,
+	const std::wstring& filename)
+{
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
+	if(LoadOBJ(filename,vertices,indices))
+	{
+		CreateBufferAndUpload(md3dDevice,mCommandList,vertices,indices);
+
+		BuildRenderItem(md3dDevice);
+	}
+}
+
+void ObjectManager::ModifyScale(float var)
+{
+	mObjScale.x+=var;
+	mObjScale.y+=var;
+	mObjScale.z+=var;
 }

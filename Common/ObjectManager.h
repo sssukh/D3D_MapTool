@@ -1,10 +1,12 @@
 ﻿#pragma once
 #include <d3d12.h>
+#include <DirectXMath.h>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+struct Vertex;
 struct Material;
 struct MeshGeometry;
 
@@ -40,11 +42,31 @@ public:
     RenderItem* GetBox() {return mBox;}
 
     RenderItem* GetSphere() {return mSphere;}
+
+    RenderItem* GetObj() {return mObj;}
+    
     // void BuildRenderItem(const ID3D12Device* md3dDevice, RenderType pRenderType);
 
     void BuildPlaneGeometry(ID3D12Device* md3dDevice, ID3D12GraphicsCommandList* mCommandList,float width = 10, float depth = 10, uint32_t m = 2, uint32_t n = 2);
     
     void BuildShapeGeometry(ID3D12Device* md3dDevice, ID3D12GraphicsCommandList* mCommandList);
+
+    bool LoadOBJ(const std::wstring& filename, 
+             std::vector<Vertex>& outVertices, 
+             std::vector<uint32_t>& outIndices);
+
+    bool CreateBufferAndUpload(ID3D12Device* md3dDevice, ID3D12GraphicsCommandList* mCommandList,std::vector<Vertex>& outVertices, 
+             std::vector<uint32_t>& outIndices);
+
+    void BuildRenderItem(ID3D12Device* md3dDevice);
+
+    void CreateOBJ(ID3D12Device* md3dDevice, ID3D12GraphicsCommandList* mCommandList,const std::wstring& filename);
+
+    void ModifyScale(float var);
+
+    DirectX::XMFLOAT3 GetScale() const {return mObjScale;}
+
+    void SetScale(const float x, const float y, const float z) { mObjScale.x =x; mObjScale.y = y; mObjScale.z = z;}
 private:
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
@@ -61,4 +83,7 @@ private:
 
     RenderItem* mPlane = nullptr;
 
+    RenderItem* mObj = nullptr;
+
+    DirectX::XMFLOAT3 mObjScale = DirectX::XMFLOAT3(1.0f,1.0f,1.0f);
 };

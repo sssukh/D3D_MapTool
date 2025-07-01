@@ -282,6 +282,20 @@ UINT myImGui::DrawChangeRayModeWindow()
     return result;
 }
 
+float* myImGui::DrawObjScaleWindow(float& x, float& y, float& z)
+{
+    float scaleValue[3] = {x,y,z};
+    ImGui::Begin("Object scale");
+
+    CheckMouseHovering();
+    
+    ImGui::DragFloat3("Drag or Type float",scaleValue,0.01f,0.0f,100.0f);
+    
+    ImGui::End();
+    
+    return scaleValue ;
+}
+
 void myImGui::CheckMouseHovering()
 {
     bool flag = false;
