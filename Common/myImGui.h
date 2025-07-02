@@ -102,6 +102,8 @@ public:
 
     void CheckMouseHovering();
 
+    UINT DrawMaterialSelectWindow(UINT pIndex);
+
 private:
     HWND mHwnd = nullptr;
     

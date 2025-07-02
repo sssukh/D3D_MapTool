@@ -158,7 +158,7 @@ float CalcShadowFactor(float4 shadowPosH)
     [unroll]
     for(int i = 0; i < 9; ++i)
     {
-        percentLit += gDiffuseMap[5].SampleCmpLevelZero(gsamShadow,
+        percentLit += gDiffuseMap[7].SampleCmpLevelZero(gsamShadow,
             shadowPosH.xy + offsets[i], depth).r;
     }
     

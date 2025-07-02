@@ -305,6 +305,42 @@ void myImGui::CheckMouseHovering()
     bIsMouseHovering |=flag;
 }
 
+UINT myImGui::DrawMaterialSelectWindow(UINT pIndex)
+{
+    ImGui::Begin("Select Material");
+
+    CheckMouseHovering();
+    
+    if(ImGui::Button("Texture 0"))
+    {
+        pIndex = 0;
+    }
+    else if(ImGui::Button("Texture 1"))
+    {
+        pIndex = 1;
+    }
+    else if(ImGui::Button("Texture 2"))
+    {
+        pIndex = 2;
+    }
+    else if(ImGui::Button("Texture 3"))
+    {
+        pIndex = 3;
+    }
+    else if(ImGui::Button("Texture 4"))
+    {
+        pIndex = 4;
+    }
+    else if(ImGui::Button("Texture 5"))
+    {
+        pIndex = 5;
+    }
+    
+    ImGui::End();
+    
+    return pIndex ;
+}
+
 
 void myImGui::ReleaseImGui()
 {

@@ -67,6 +67,10 @@ public:
     DirectX::XMFLOAT3 GetScale() const {return mObjScale;}
 
     void SetScale(const float x, const float y, const float z) { mObjScale.x =x; mObjScale.y = y; mObjScale.z = z;}
+
+    void SetMaterialIndex(UINT pMat) {mMaterialIndex = pMat;}
+
+    UINT GetMaterialIndex() const {return mMaterialIndex;}
 private:
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
@@ -86,4 +90,6 @@ private:
     RenderItem* mObj = nullptr;
 
     DirectX::XMFLOAT3 mObjScale = DirectX::XMFLOAT3(1.0f,1.0f,1.0f);
+
+    UINT mMaterialIndex=0;
 };

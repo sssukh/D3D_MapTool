@@ -133,6 +133,8 @@ int D3DApp::Run()
 
 				mImGui->DrawWireFrameModeWindow(mIsWireFrameMode);
 
+				
+				
 				{
 					UINT tmpIntRange = mMouseRay->GetIntersectRange();
 					UINT tmpMaxStrRange = mMouseRay->GetStrengthRange();
@@ -151,6 +153,8 @@ int D3DApp::Run()
 				float* tmp = mImGui->DrawObjScaleWindow(tmpfloat3.x,tmpfloat3.y,tmpfloat3.z);
 
 				mObjectMng->SetScale(tmp[0],tmp[1],tmp[2]);
+
+				mObjectMng->SetMaterialIndex(mImGui->DrawMaterialSelectWindow(mObjectMng->GetMaterialIndex()));
 				
                 Draw(mTimer);
 
@@ -2433,11 +2437,12 @@ void D3DApp::CreateRenderItem(RenderItem* pRI, XMFLOAT3 worldPos,XMFLOAT3 worldS
 			InstanceData nID;
 			XMStoreFloat4x4(&nID.World,XMMatrixRotationRollPitchYaw(worldRot.x,worldRot.y,worldRot.z)*XMMatrixScaling(worldScale.x,worldScale.y,worldScale.z) * XMMatrixTranslation(worldPos.x,worldPos.y,worldPos.z));
 			XMStoreFloat4x4(&nID.TexTransform,XMMatrixScaling(1.0f,1.0f,1.0f));
-			nID.MaterialIndex = 3 % mObjectMng->GetMaterials().size();
+			nID.MaterialIndex = mObjectMng->GetMaterialIndex() % mObjectMng->GetMaterials().size();
 
 			nIR.InstanceID = pRI->AddInstance(nID);
 			
 			qt->AddObject(nIR);
+			break;
 		}
 	}
 }
