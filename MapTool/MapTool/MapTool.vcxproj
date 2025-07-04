@@ -149,6 +149,7 @@
     <ClInclude Include="..\..\Common\QuadTreeNode.h" />
     <ClInclude Include="..\..\Common\RenderItem.h" />
     <ClInclude Include="..\..\Common\ShadowMap.h" />
+    <ClInclude Include="..\..\Common\Ssao.h" />
     <ClInclude Include="..\..\Common\UploadBuffer.h" />
     <ClInclude Include="..\..\Common\UploadHelper.h" />
     <ClInclude Include="..\..\ImGui\imconfig.h" />
@@ -257,6 +258,7 @@
     <ClCompile Include="..\..\Common\QuadTreeNode.cpp" />
     <ClCompile Include="..\..\Common\RenderItem.cpp" />
     <ClCompile Include="..\..\Common\ShadowMap.cpp" />
+    <ClCompile Include="..\..\Common\Ssao.cpp" />
     <ClCompile Include="..\..\Common\UploadHelper.cpp" />
     <ClCompile Include="..\..\ImGui\imgui.cpp" />
     <ClCompile Include="..\..\ImGui\imgui_demo.cpp" />

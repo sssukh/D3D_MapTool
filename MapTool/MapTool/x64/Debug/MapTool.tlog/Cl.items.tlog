@@ -14,6 +14,7 @@ C:\MapTool\Common\ObjectManager.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\ObjectM
 C:\MapTool\Common\QuadTreeNode.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\QuadTreeNode.obj
 C:\MapTool\Common\RenderItem.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\RenderItem.obj
 C:\MapTool\Common\ShadowMap.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\ShadowMap.obj
+C:\MapTool\Common\Ssao.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\Ssao.obj
 C:\MapTool\Common\UploadHelper.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\UploadHelper.obj
 C:\MapTool\ImGui\imgui.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui.obj
 C:\MapTool\ImGui\imgui_demo.cpp;C:\MapTool\MapTool\MapTool\x64\Debug\imgui_demo.obj

@@ -23,6 +23,7 @@
 #include "myTexture.h"
 #include "QuadTreeNode.h"
 
+class Ssao;
 class ObjectManager;
 class ShadowMap;
 using Microsoft::WRL::ComPtr;
@@ -184,6 +185,15 @@ private:
 	void EraseRenderItem(XMFLOAT3 worldPos, float pRange);
 	
 	void UpdateObjectCursur(const GameTimer& gt);
+
+	void UpdateSsaoCB(const GameTimer& gt);
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetCpuSrv(int index)const;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE GetGpuSrv(int index)const;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetDsv(int index)const;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetRtv(int index)const;
+
+	void DrawSceneNormalsAndDepth();
 protected:
 
     static D3DApp* mApp;
@@ -332,6 +342,7 @@ private:
 	UINT mMaxNormalCount = 2;
 
 	UINT mShadowMapHeapIndex = 0;
+	UINT mSsaoHeapIndex=0;
 	
 	UINT mNullCubeSrvIndex = 0;
 	UINT mNullTexSrvIndex = 0;
@@ -380,5 +391,7 @@ private:
 	float creationTimer = 0.0f;
 
 	ObjectManager* mObjectMng = nullptr;
+
+	std::unique_ptr<Ssao> mSsao;
 };
 
