@@ -226,8 +226,8 @@ bool D3DApp::Initialize()
 
 	UINT halfWid = width/2;
 	UINT halfHeight = height/2;
-	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	mSceneBounds.Radius = sqrtf(halfWid*halfWid + halfHeight*halfHeight);
+	mSceneBounds.Center = XMFLOAT3(0.0f, 25.0f, 0.0f);
+	mSceneBounds.Radius = sqrtf(halfWid*halfWid + halfHeight*halfHeight) + 10.0f;
 
 	InitializeQuadTree(width,height);
 	
@@ -425,19 +425,16 @@ void D3DApp::Update(const GameTimer& gt)
 	UINT tmpVertexByteStride = mObjectMng->GetPlane()->Geo->VertexByteStride;
 	mMouseRay->UpdateRayCBs(tmpDesc.Width,tmpDesc.Height,mObjectMng->GetGeometries()["planeGeo"]->DrawArgs["plane"].IndexCount/4);
 
-	// Delete
-	// UpdateObjectCBs(gt);
-	// UpdateMaterialCBs(gt);
 	
 	UpdateInstanceBuffer(gt);
 	UpdateMaterialBuffer(gt);
-	UpdateMainPassCB(gt);
 
 	UpdateObjectCursur(gt);
 	
 	AnimateLights(gt);
 	UpdateShadowTransform(gt);
 	UpdateShadowPassCB(gt);
+	UpdateMainPassCB(gt);
 
 	UpdateSsaoCB(gt);
 	
@@ -504,10 +501,10 @@ void D3DApp::Draw(const GameTimer& gt)
 
 	// Normal/depth pass
 	DrawSceneNormalsAndDepth();
-
+	
 	// Compute SSAO
 	mCommandList->SetGraphicsRootSignature(mSsao->GetSsaoRootSignature());
-	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 3);
+	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 8);
 
 	
 	
@@ -1502,9 +1499,9 @@ void D3DApp::BuildPSOs()
 	smapPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	smapPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	smapPsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-	smapPsoDesc.RasterizerState.DepthBias = 100000;
+	smapPsoDesc.RasterizerState.DepthBias = 1000;
 	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
-	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.5f;
+	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
 	smapPsoDesc.pRootSignature = mRootSignature.Get();
 	smapPsoDesc.VS =
 	{
@@ -1547,16 +1544,16 @@ void D3DApp::BuildPSOs()
 	smapTriPsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
 	smapTriPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	smapTriPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
-	smapTriPsoDesc.RasterizerState.DepthBias = 100;
+	smapTriPsoDesc.RasterizerState.DepthBias = 1000;
 	smapTriPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
-	smapTriPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
+	smapTriPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.5;
 	smapTriPsoDesc.pRootSignature = mRootSignature.Get();
 	smapTriPsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["shadowTriVS"]->GetBufferPointer()),
 		mShaders["shadowTriVS"]->GetBufferSize()
 	};
-	smapPsoDesc.PS =
+	smapTriPsoDesc.PS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["shadowOpaqueTriPS"]->GetBufferPointer()),
 		mShaders["shadowOpaqueTriPS"]->GetBufferSize()
@@ -2270,7 +2267,7 @@ void D3DApp::AnimateLights(const GameTimer& gt)
 {
 	// Animate the lights (and hence shadows).
 
-	mLightRotationAngle += 0.1f*gt.DeltaTime();
+	mLightRotationAngle += 0.3f*gt.DeltaTime();
 
 	XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);
 	for(int i = 0; i < 3; ++i)
@@ -2634,6 +2631,11 @@ void D3DApp::DrawSceneNormalsAndDepth()
 
 	DrawRenderItems(mCommandList.Get(), mObjectMng->GetRenderItemByRenderType(RenderType::OpaqueTri));
 
+
+	mCommandList->SetPipelineState(mSsao->GetNormalPatchPso());
+	
+	DrawRenderItems(mCommandList.Get(), mObjectMng->GetRenderItemByRenderType(RenderType::Opaque));
+	
 	// Change back to GENERIC_READ so we can read the texture in a shader.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(normalMap,
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));

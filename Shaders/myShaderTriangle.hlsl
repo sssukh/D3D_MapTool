@@ -10,7 +10,8 @@ struct VertexIn
 struct VertexOut
 {
 	float4 PosH    : SV_POSITION;
-    float3 PosW    : POSITION;
+	float4 ShadowPosH : POSITION0;
+    float3 PosW    : POSITION1;
     float3 NormalW : NORMAL;
 	float2 TexC    : TEXCOORD;
 	nointerpolation uint MatIndex  : MATINDEX;
@@ -36,7 +37,9 @@ VertexOut VS(VertexIn vin, uint instanceID : SV_InstanceID)
 
 	// Transform to homogeneous clip space.
 	vout.PosH = mul(posW, gViewProj);
-	
+
+	vout.ShadowPosH = mul(posW,gShadowTransform);
+
 	// Output vertex attributes for interpolation across triangle.
 	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), texTransform);
 	vout.TexC = mul(texC, matData.MatTransform).xy;
@@ -190,12 +193,14 @@ float4 PS(VertexOut pin) : SV_Target
     // Light terms.
     float4 ambient = gAmbientLight*diffuseAlbedo;
 
-	// float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
-	// shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
+	float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
+	shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
 
     const float shininess = 1.0f - mRoughness;
     Material mat = { diffuseAlbedo, mFresnelR0, shininess };
-    float3 shadowFactor = 0.0f;
+
+    shadowFactor = float3(0.0f, 0.0f, 0.0f);
+
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
         pin.NormalW, toEyeW, shadowFactor);
 

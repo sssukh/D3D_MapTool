@@ -77,6 +77,8 @@ public:
 
 	ID3D12PipelineState* GetNormalPso() { return mNormalPso;}
 
+	ID3D12PipelineState* GetNormalPatchPso() { return mNormalPatchPso;}
+	
 	ID3D12RootSignature* GetSsaoRootSignature() { return mSsaoRootSignature.Get();}
 
 	
@@ -102,6 +104,7 @@ private:
     ID3D12PipelineState* mSsaoPso = nullptr;
     ID3D12PipelineState* mBlurPso = nullptr;
 	ID3D12PipelineState* mNormalPso = nullptr;
+	ID3D12PipelineState* mNormalPatchPso = nullptr;
 
 	 
     Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMap;
@@ -139,6 +142,12 @@ private:
 
 	Microsoft::WRL::ComPtr<ID3DBlob> NormalVS = nullptr;
 	Microsoft::WRL::ComPtr<ID3DBlob> NormalPS = nullptr;
+
+	Microsoft::WRL::ComPtr<ID3DBlob> NormalPatchVS = nullptr;
+	Microsoft::WRL::ComPtr<ID3DBlob> NormalPatchHS = nullptr;
+	Microsoft::WRL::ComPtr<ID3DBlob> NormalPatchDS = nullptr;
+	Microsoft::WRL::ComPtr<ID3DBlob> NormalPatchPS = nullptr;
+	
 	Microsoft::WRL::ComPtr<ID3DBlob> SsaoVS = nullptr;
 	Microsoft::WRL::ComPtr<ID3DBlob> SsaoPS = nullptr;
 	Microsoft::WRL::ComPtr<ID3DBlob> BlurVS = nullptr;

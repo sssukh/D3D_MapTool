@@ -250,6 +250,31 @@ void Ssao::BuildPso(D3D12_GRAPHICS_PIPELINE_STATE_DESC pBasePso)
     drawNormalsPsoDesc.SampleDesc.Quality = 0;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawNormalsPsoDesc, IID_PPV_ARGS(&mNormalPso)));
 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC drawNormalsPatchPsoDesc = drawNormalsPsoDesc;
+    drawNormalsPatchPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(NormalPatchVS->GetBufferPointer()),
+        NormalPatchVS->GetBufferSize()
+    };
+    drawNormalsPatchPsoDesc.HS =
+    {
+        reinterpret_cast<BYTE*>(NormalPatchHS->GetBufferPointer()),
+        NormalPatchHS->GetBufferSize()
+    };
+    drawNormalsPatchPsoDesc.DS =
+    {
+        reinterpret_cast<BYTE*>(NormalPatchDS->GetBufferPointer()),
+        NormalPatchDS->GetBufferSize()
+    };
+    drawNormalsPatchPsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(NormalPatchPS->GetBufferPointer()),
+        NormalPatchPS->GetBufferSize()
+    };
+    drawNormalsPatchPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawNormalsPatchPsoDesc, IID_PPV_ARGS(&mNormalPatchPso)));
+
     //
     // PSO for SSAO.
     //
@@ -303,6 +328,11 @@ void Ssao::BuildShaders()
     SsaoPS = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\Ssao.hlsl", nullptr, "PS", "ps_5_1");
     BlurVS = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\SsaoBlur.hlsl", nullptr, "VS", "vs_5_1");
     BlurPS = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\SsaoBlur.hlsl", nullptr, "PS", "ps_5_1");
+    NormalPatchVS = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\DrawNormalsPatch.hlsl", nullptr, "VS", "vs_5_1");
+    NormalPatchHS = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\DrawNormalsPatch.hlsl", nullptr, "HS", "hs_5_1");
+    NormalPatchDS = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\DrawNormalsPatch.hlsl", nullptr, "DS", "ds_5_1");
+    NormalPatchPS = d3dUtil::CompileShader(L"C:\\MapTool\\Shaders\\DrawNormalsPatch.hlsl", nullptr, "PS", "ps_5_1");
+    
 }
 
 void Ssao::BuildSsaoRootSignature()

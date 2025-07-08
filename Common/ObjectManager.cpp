@@ -132,7 +132,7 @@ void ObjectManager::InitializeRenderItems(ID3D12Device* md3dDevice)
 	mAllRitems.push_back(std::move(quadRitem));
 
 	auto boxRitem = std::make_unique<RenderItem>(md3dDevice,1000);
-	DirectX::XMStoreFloat4x4(&boxRitem->World, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f)* DirectX::XMMatrixTranslation(0.0f, 0.0f, 0.0f));
+	DirectX::XMStoreFloat4x4(&boxRitem->World, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f)* DirectX::XMMatrixTranslation(0.0f, 50.0f, 0.0f));
 	DirectX::XMStoreFloat4x4(&boxRitem->TexTransform, DirectX::XMMatrixScaling(1.0f, 0.5f, 1.0f));
 	boxRitem->ObjCBIndex = 1;
 	boxRitem->Mat = mMaterials["checkboard"].get();
@@ -149,9 +149,9 @@ void ObjectManager::InitializeRenderItems(ID3D12Device* md3dDevice)
 
 	InstanceData boxID;
 	
-	XMStoreFloat4x4(&boxID.World, DirectX::XMMatrixTranslation(0.0f, 0.0f, 0.0f));
+	XMStoreFloat4x4(&boxID.World, DirectX::XMMatrixTranslation(0.0f, 50.0f, 0.0f));
 	XMStoreFloat4x4(&boxID.TexTransform, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f));
-	boxID.MaterialIndex = 3 % mMaterials.size();
+	boxID.MaterialIndex = 1 % mMaterials.size();
 
 	boxRitem->AddInstance(boxID);
 	

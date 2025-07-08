@@ -62,7 +62,7 @@ SamplerState gsamLinearWrap       : register(s2);
 SamplerState gsamLinearClamp      : register(s3);
 SamplerState gsamAnisotropicWrap  : register(s4);
 SamplerState gsamAnisotropicClamp : register(s5);
-SamplerComparisonState gsamShadow			  : register(s6);
+SamplerComparisonState gsamShadow : register(s6);
 
 // Constant data that varies per frame.
 /*
@@ -138,11 +138,13 @@ float CalcShadowFactor(float4 shadowPosH)
     // Complete projection by doing division by w.
     shadowPosH.xyz /= shadowPosH.w;
 
+	float2 shadowTexCoord = shadowPosH.xy;
+
     // Depth in NDC space.
     float depth = shadowPosH.z;
 
     uint width, height, numMips;
-    gDiffuseMap[5].GetDimensions(0, width, height, numMips);
+    gDiffuseMap[7].GetDimensions(0, width, height, numMips);
 
     // Texel size.
     float dx = 1.0f / (float)width;
@@ -159,7 +161,7 @@ float CalcShadowFactor(float4 shadowPosH)
     for(int i = 0; i < 9; ++i)
     {
         percentLit += gDiffuseMap[7].SampleCmpLevelZero(gsamShadow,
-            shadowPosH.xy + offsets[i], depth).r;
+            shadowTexCoord + offsets[i], depth).r;
     }
     
     return percentLit / 9.0f;
