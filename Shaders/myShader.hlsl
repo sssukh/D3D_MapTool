@@ -156,6 +156,7 @@ DomainOut DS(PatchTess patchTess,
 	float3 normal = float3(normalMap.rgb);
 
 	float4 texC = mul(float4(t, 0.0f, 1.0f), texTransform);
+		
 
 	float4 posW = mul(float4(p, 1.0f), world);
 	dout.PosH = mul(posW, gViewProj);
@@ -180,9 +181,12 @@ float4 PS(DomainOut pin) : SV_Target
 	float3 mFresnelR0 = matData.FresnelR0;
 	float  mRoughness = matData.Roughness;
 	uint diffuseTexIndex = matData.DiffuseMapIndex;
+	
+	pin.TexC =  mul(pin.TexC, matData.MatTransform).xy;
 
     float4 diffuseAlbedo = gDiffuseMap[gTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * mDiffuseAlbedo;
 	
+
     // Interpolating normal can unnormalize it, so renormalize it.
     pin.NormalW = normalize(pin.NormalW);
 

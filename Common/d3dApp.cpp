@@ -498,7 +498,7 @@ void D3DApp::Draw(const GameTimer& gt)
 	// Shadow pass
 	DrawSceneToShadowMap();
 
-
+	
 	// Normal/depth pass
 	DrawSceneNormalsAndDepth();
 	

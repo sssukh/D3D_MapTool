@@ -149,7 +149,7 @@ void ObjectManager::InitializeRenderItems(ID3D12Device* md3dDevice)
 
 	InstanceData boxID;
 	
-	XMStoreFloat4x4(&boxID.World, DirectX::XMMatrixTranslation(0.0f, 50.0f, 0.0f));
+	XMStoreFloat4x4(&boxID.World, DirectX::XMMatrixTranslation(0.0f, 10.0f, 0.0f));
 	XMStoreFloat4x4(&boxID.TexTransform, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxID.MaterialIndex = 1 % mMaterials.size();
 

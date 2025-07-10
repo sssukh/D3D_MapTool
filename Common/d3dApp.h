@@ -386,7 +386,7 @@ private:
 
 	std::vector<QuadTreeNode*> mQuadTree;
 
-	const float createCooldown = 0.01f;
+	const float createCooldown = 0.05f;
 
 	float creationTimer = 0.0f;
 

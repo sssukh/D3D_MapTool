@@ -185,6 +185,9 @@ float4 PS(VertexOut pin) : SV_Target
     
 	float4 diffuseAlbedo = gDiffuseMap[diffuseTexIndex].Sample(gsamAnisotropicWrap, pin.TexC) * mDiffuseAlbedo;
 
+    pin.NormalW = normalize(pin.NormalW);
+
+
     // Vector from point being lit to eye. 
 	float3 toEyeW = gEyePosW - pin.PosW;
 	float distToEye = length(toEyeW);
@@ -199,18 +202,14 @@ float4 PS(VertexOut pin) : SV_Target
     const float shininess = 1.0f - mRoughness;
     Material mat = { diffuseAlbedo, mFresnelR0, shininess };
 
-    shadowFactor = float3(0.0f, 0.0f, 0.0f);
+    // shadowFactor = float3(0.0f, 0.0f, 0.0f);
 
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
         pin.NormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
 	
-	if(gMouseMode==1)
-	{	
-		
-
-	}
+	
 
 
     // Common convention to take alpha from diffuse albedo.
